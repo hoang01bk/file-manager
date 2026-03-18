@@ -1,0 +1,81 @@
+services:
+  # 1. Laravel App (PHP-FPM)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: file-manager-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - /var/www/node_modules
+      - build_assets:/var/www/public/build
+    networks:
+      - app-network
+
+  # 2. Web Server (Nginx)
+  webserver:
+    image: nginx:alpine
+    container_name: file-manager-nginx
+    restart: unless-stopped
+    ports:
+      - "8111:80"
+    volumes:
+      - .:/var/www
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - build_assets:/var/www/public/build
+    networks:
+      - app-network
+
+  # 3. Database (PostgreSQL)
+  db:
+    image: postgres:16-alpine
+    container_name: file-manager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: file_manager
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # 4. Queue Worker (Xử lý xóa file hết hạn)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: file-manager-worker
+    restart: unless-stopped
+    command: php artisan queue:work --verbose --tries=3 --timeout=90
+    volumes:
+      - .:/var/www
+    networks:
+      - app-network
+
+  # 5. Scheduler (Quét file hết hạn mỗi phút)
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: file-manager-scheduler
+    restart: unless-stopped
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  build_assets:
