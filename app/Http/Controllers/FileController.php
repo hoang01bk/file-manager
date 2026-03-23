@@ -13,7 +13,11 @@ class FileController extends Controller
     public function index()
     {
         return Inertia::render('FileDashboard', [
-            'files' => Upload::orderBy('created_at', 'desc')->get()
+            'files' => Upload::orderBy('created_at', 'desc')->get(),
+            'posts' => \App\Models\Post::where('expires_at', '<', now())
+                ->orWhereNull('expires_at')
+                ->orderBy('created_at', 'desc')
+                ->get(),
         ]);
     }
 
@@ -52,6 +56,22 @@ class FileController extends Controller
             return Storage::disk('public')->download($upload->file_path, $upload->file_name);
         }
 
+
         return back()->with('error', 'File không tồn tại trên hệ thống.');
+    }
+
+    public function preview($id)
+    {
+        $upload = Upload::findOrFail($id);
+
+        if (Storage::disk('public')->exists($upload->file_path)) {
+            $mimeType = Storage::disk('public')->mimeType($upload->file_path);
+            return response()->file(Storage::disk('public')->path($upload->file_path), [
+                'Content-Type' => $mimeType,
+                'Content-Disposition' => 'inline; filename="' . $upload->file_name . '"',
+            ]);
+        }
+
+        abort(404, 'File không tồn tại.');
     }
 }

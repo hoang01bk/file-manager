@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
-  Layout, Menu, Table, Tag, Button,
+  Layout, Menu, Table, Tag, Button, Input, Modal,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space
 } from 'antd';
 import {
-  UploadOutlined, DeleteOutlined, FileOutlined,
+  UploadOutlined, DeleteOutlined, FileOutlined, EyeOutlined,
   DashboardOutlined, CloudUploadOutlined, HourglassOutlined,
   InboxOutlined, DownloadOutlined
 } from '@ant-design/icons';
@@ -13,9 +13,11 @@ import {
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-export default function FileDashboard({ files }) {
+export default function FileDashboard({ files, posts = [] }) {
   const [loading, setLoading] = useState(false);
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
+  const [postContent, setPostContent] = useState('');
+  const [previewFile, setPreviewFile] = useState(null);
 
   const handleUpload = (info) => {
     setLoading(true);
@@ -67,6 +69,13 @@ export default function FileDashboard({ files }) {
         <Space>
           <Button
             type="link"
+            icon={<EyeOutlined />}
+            onClick={() => setPreviewFile(record)}
+          >
+            Xem
+          </Button>
+          <Button
+            type="link"
             icon={<DownloadOutlined />}
             onClick={() => window.location.href = `/files/${record.id}/download`}
           >
@@ -89,22 +98,32 @@ export default function FileDashboard({ files }) {
     },
   ];
 
+  const handlePostSubmit = () => {
+    if (!postContent.trim()) {
+      message.error("Nội dung không được để trống.");
+      return;
+    }
+
+    setLoading(true);
+    router.post('/posts', {
+      content: postContent,
+      ttl_minutes: ttl
+    }, {
+      onSuccess: () => {
+        message.success('Đã gửi Post thành công!');
+        setPostContent("");
+        setLoading(false);
+      },
+      onError: () => {
+        message.error('Lỗi khi gửi Post.');
+        setLoading(false);
+      }
+    });
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Head title="Quản lý File Tập Trung" />
-
-      {/* Sidebar giống bản mô tả */}
-      <Sider theme="dark" width={260} style={{ background: '#001529' }}>
-        <div style={{ padding: '24px', textAlign: 'center' }}>
-          <Title level={3} style={{ color: '#fff', margin: 0 }}>
-            <CloudUploadOutlined /> FileCentral
-          </Title>
-        </div>
-        <Menu theme="dark" mode="inline" defaultSelectedKeys={['1']} style={{ padding: '0 8px' }}>
-          <Menu.Item key="1" icon={<DashboardOutlined />}>Dashboard</Menu.Item>
-          {/* <Menu.Item key="2" icon={<FileOutlined />}>Tất cả File</Menu.Item> */}
-        </Menu>
-      </Sider>
 
       <Layout style={{ background: '#f0f2f5' }}>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -113,29 +132,83 @@ export default function FileDashboard({ files }) {
         </Header>
 
         <Content style={{ margin: '24px' }}>
-          {/* Stats Cards - Giống bản HTML mô phỏng */}
           <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-            <Col span={8}>
-              <Card bordered={false} className="shadow-sm">
-                <Statistic title="Files đang lưu trữ" value={files.length} prefix={<FileOutlined />} valueStyle={{ color: '#3f51b5' }} />
+            {/* Cột trái: Post */}
+            <Col span={14} style={{ display: 'flex' }}>
+              <Card title="Hiển thị thông báo" bordered={false} className="shadow-sm" style={{ flex: 1 }}>
+                <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px' }}>
+                  {posts.length > 0 ? posts.map((post, index) => {
+                    const isLeft = index % 2 === 0;
+                    return (
+                      <div key={post.id} style={{ display: 'flex', justifyContent: isLeft ? 'flex-start' : 'flex-end', marginBottom: '10px' }}>
+                        <div style={{
+                          background: isLeft ? '#e6f7ff' : '#f6ffed',
+                          border: `1px solid ${isLeft ? '#91caff' : '#b7eb8f'}`,
+                          padding: '10px 14px',
+                          borderRadius: isLeft ? '0 12px 12px 12px' : '12px 0 12px 12px',
+                          maxWidth: '80%',
+                        }}>
+                          <Text strong>{post.content}</Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: '11px' }}>
+                            {new Date(post.created_at).toLocaleString('vi-VN')}
+                            {post.expires_at && ` · Hết hạn: ${new Date(post.expires_at).toLocaleString('vi-VN')}`}
+                          </Text>
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <div style={{ background: '#f5f5f5', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                      <Text type="secondary">Chưa có thông báo nào.</Text>
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <Text strong>Gửi thông báo cần đăng lên ở đây:</Text>
+                  <ul>
+                    <li>Ví dụ: Ngày 22/3 lúc 10h sáng IT sẽ shutdown Server bảo trì máy... Dự kiến đến 13h chiều sẽ mở lại.</li>
+                  </ul>
+                </div>
+                <Input.TextArea
+                  rows={4}
+                  placeholder="Nhập thông tin cần Post..."
+                  onChange={(e) => setPostContent(e.target.value)}
+                  value={postContent}
+                  style={{ marginBottom: '16px' }}
+                />
+                <Button
+                  type="primary"
+                  onClick={handlePostSubmit}
+                  loading={loading}
+                >
+                  Gửi Post thông tin
+                </Button>
               </Card>
             </Col>
-            <Col span={8}>
-              <Card bordered={false} className="shadow-sm">
-                <Statistic title="Dung lượng đã dùng" value={1.8} suffix="GB" prefix={<CloudUploadOutlined />} />
-              </Card>
-            </Col>
-            <Col span={8}>
-              <Card bordered={false} className="shadow-sm">
-                <Statistic title="Sắp hết hạn (24h)" value={files.filter(f => new Date(f.expired_at) - new Date() < 86400000).length} valueStyle={{ color: '#cf1322' }} prefix={<HourglassOutlined />} />
-              </Card>
-            </Col>
-          </Row>
 
-          {/* Upload Box thiết kế lại giống Dropzone */}
-          <Card style={{ marginBottom: 24 }} bordered={false} className="shadow-sm">
-            <Row gutter={24} align="middle">
-              <Col span={16}>
+            {/* Cột phải: Stats + Upload */}
+            <Col span={10}>
+              {/* Stats Cards */}
+              <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+                <Col span={8}>
+                  <Card bordered={false} className="shadow-sm" bodyStyle={{ padding: '16px' }}>
+                    <Statistic title="Files đang lưu trữ" value={files.length} prefix={<FileOutlined />} valueStyle={{ color: '#3f51b5' }} />
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card bordered={false} className="shadow-sm" bodyStyle={{ padding: '16px' }}>
+                    <Statistic title="Dung lượng đã dùng" value={1.8} suffix="GB" prefix={<CloudUploadOutlined />} />
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card bordered={false} className="shadow-sm" bodyStyle={{ padding: '16px' }}>
+                    <Statistic title="Sắp hết hạn (24h)" value={files.filter(f => new Date(f.expired_at) - new Date() < 86400000).length} valueStyle={{ color: '#cf1322' }} prefix={<HourglassOutlined />} />
+                  </Card>
+                </Col>
+              </Row>
+
+              {/* Upload Box */}
+              <Card title="Tải file lên" bordered={false} className="shadow-sm">
                 <Upload.Dragger
                   customRequest={handleUpload}
                   showUploadList={false}
@@ -143,17 +216,15 @@ export default function FileDashboard({ files }) {
                   style={{ background: '#fafafa', borderRadius: '12px' }}
                 >
                   <p className="ant-upload-drag-icon"><InboxOutlined style={{ color: '#1890ff' }} /></p>
-                  <p className="ant-upload-text">Nhấn hoặc kéo thả file vào khu vực này để tải lên</p>
+                  <p className="ant-upload-text">Nhấn hoặc kéo thả file vào đây</p>
                   <p className="ant-upload-hint">Hỗ trợ tải lên tập trung, an toàn và tự động dọn dẹp.</p>
                 </Upload.Dragger>
-              </Col>
-              <Col span={8}>
-                <div style={{ padding: '10px' }}>
-                  <Text strong block style={{ marginBottom: 12 }}>Thiết lập thời gian xóa:</Text>
+                <div style={{ padding: '16px 0 0' }}>
+                  <Text strong style={{ display: 'block', marginBottom: 12 }}>Thiết lập thời gian xóa:</Text>
                   <Select
                     size="large"
                     defaultValue={1440}
-                    style={{ width: '100%', marginBottom: 20 }}
+                    style={{ width: '100%', marginBottom: 16 }}
                     onChange={(v) => setTtl(v)}
                     options={[
                       { value: 1, label: 'Xóa sau 1 phút' },
@@ -164,15 +235,15 @@ export default function FileDashboard({ files }) {
                       { value: 10080, label: 'Xóa sau 7 ngày' },
                     ]}
                   />
-                  <Text type="secondary" size="small">
+                  <Text type="secondary">
                     * File sẽ bị xóa vĩnh viễn khỏi server sau khoảng thời gian này.
                   </Text>
                 </div>
-              </Col>
-            </Row>
-          </Card>
+              </Card>
+            </Col>
+          </Row>
 
-          {/* Danh sách File */}
+          {/* Danh sách File - 100% width */}
           <Card title="Danh sách dữ liệu" bordered={false} className="shadow-sm">
             <Table
               columns={columns}
@@ -183,6 +254,23 @@ export default function FileDashboard({ files }) {
           </Card>
         </Content>
       </Layout>
+
+      <Modal
+        title={previewFile?.file_name}
+        open={!!previewFile}
+        onCancel={() => setPreviewFile(null)}
+        footer={null}
+        width={900}
+        bodyStyle={{ padding: 0, height: '70vh' }}
+        destroyOnClose
+      >
+        {previewFile && (
+          <iframe
+            src={`/files/${previewFile.id}/preview`}
+            style={{ width: '100%', height: '70vh', border: 'none' }}
+          />
+        )}
+      </Modal>
     </Layout>
   );
 }

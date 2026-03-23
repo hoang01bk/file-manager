@@ -5,6 +5,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\FileController;
+use App\Http\Controllers\PostController;
 
 
 // Route::get('/', function () {
@@ -35,6 +36,7 @@ Route::get('/dashboard', [FileController::class , 'index']);
 // Các route xử lý file (Đã bỏ middleware auth)
 Route::post('/upload', [FileController::class , 'store'])->name('files.store');
 Route::get('/files/{id}/download', [FileController::class , 'download'])->name('files.download');
+Route::get('/files/{id}/preview', [FileController::class , 'preview'])->name('files.preview');
 Route::delete('/files/{id}', [FileController::class , 'destroy'])->name('files.destroy');
 
 // Giữ lại các route profile (có thể vẫn cần auth nếu bạn muốn quay lại sau này)
@@ -43,5 +45,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class , 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class , 'destroy'])->name('profile.destroy');
 });
+
+// Routes for posts
+Route::post('/posts', [PostController::class, 'store']);
 
 require __DIR__ . '/auth.php';
