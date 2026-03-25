@@ -14,7 +14,7 @@ class FileController extends Controller
     {
         return Inertia::render('FileDashboard', [
             'files' => Upload::orderBy('created_at', 'desc')->get(),
-            'posts' => \App\Models\Post::where('expires_at', '<', now())
+            'posts' => \App\Models\Post::where('expires_at', '>', now())
                 ->orWhereNull('expires_at')
                 ->orderBy('created_at', 'desc')
                 ->get(),

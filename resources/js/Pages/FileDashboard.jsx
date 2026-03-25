@@ -127,7 +127,7 @@ export default function FileDashboard({ files, posts = [] }) {
 
       <Layout style={{ background: '#f0f2f5' }}>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Title level={4} style={{ margin: 0 }}>Hệ thống lưu trữ dữ liệu</Title>
+          <Title level={4} style={{ margin: 0 }}>Trao đổi thông tin và dữ liệu tạm thời</Title>
           <Text type="secondary">Chào mừng, Developer</Text>
         </Header>
 
@@ -135,8 +135,8 @@ export default function FileDashboard({ files, posts = [] }) {
           <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
             {/* Cột trái: Post */}
             <Col span={14} style={{ display: 'flex' }}>
-              <Card title="Hiển thị thông báo" bordered={false} className="shadow-sm" style={{ flex: 1 }}>
-                <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px' }}>
+              <Card title="Trao đổi thông tin" bordered={false} className="shadow-sm" style={{ flex: 1, display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column' } }}>
+                <div style={{ height: 420, overflowY: 'auto', marginBottom: '12px' }}>
                   {posts.length > 0 ? posts.map((post, index) => {
                     const isLeft = index % 2 === 0;
                     return (
@@ -163,19 +163,14 @@ export default function FileDashboard({ files, posts = [] }) {
                     </div>
                   )}
                 </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <Text strong>Gửi thông báo cần đăng lên ở đây:</Text>
-                  <ul>
-                    <li>Ví dụ: Ngày 22/3 lúc 10h sáng IT sẽ shutdown Server bảo trì máy... Dự kiến đến 13h chiều sẽ mở lại.</li>
-                  </ul>
-                </div>
-                <Input.TextArea
-                  rows={4}
-                  placeholder="Nhập thông tin cần Post..."
-                  onChange={(e) => setPostContent(e.target.value)}
-                  value={postContent}
-                  style={{ marginBottom: '16px' }}
-                />
+                <div style={{ marginTop: 'auto' }}>
+                  <Input.TextArea
+                    rows={2}
+                    placeholder="Nhập thông tin cần Post..."
+                    onChange={(e) => setPostContent(e.target.value)}
+                    value={postContent}
+                    style={{ marginBottom: '8px' }}
+                  />
                 <Button
                   type="primary"
                   onClick={handlePostSubmit}
@@ -183,11 +178,12 @@ export default function FileDashboard({ files, posts = [] }) {
                 >
                   Gửi Post thông tin
                 </Button>
+                </div>
               </Card>
             </Col>
 
             {/* Cột phải: Stats + Upload */}
-            <Col span={10}>
+            <Col span={10} style={{ display: 'flex', flexDirection: 'column' }}>
               {/* Stats Cards */}
               <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                 <Col span={8}>
@@ -208,12 +204,12 @@ export default function FileDashboard({ files, posts = [] }) {
               </Row>
 
               {/* Upload Box */}
-              <Card title="Tải file lên" bordered={false} className="shadow-sm">
+              <Card title="Tải file lên" bordered={false} className="shadow-sm" style={{ flex: 1, display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column' } }}>
                 <Upload.Dragger
                   customRequest={handleUpload}
                   showUploadList={false}
                   disabled={loading}
-                  style={{ background: '#fafafa', borderRadius: '12px' }}
+                  style={{ background: '#fafafa', borderRadius: '12px', flex: 1 }}
                 >
                   <p className="ant-upload-drag-icon"><InboxOutlined style={{ color: '#1890ff' }} /></p>
                   <p className="ant-upload-text">Nhấn hoặc kéo thả file vào đây</p>
@@ -244,12 +240,12 @@ export default function FileDashboard({ files, posts = [] }) {
           </Row>
 
           {/* Danh sách File - 100% width */}
-          <Card title="Danh sách dữ liệu" bordered={false} className="shadow-sm">
+          <Card title="Dữ liệu tạm thời" bordered={false} className="shadow-sm">
             <Table
               columns={columns}
               dataSource={files}
               rowKey="id"
-              pagination={{ pageSize: 6 }}
+              pagination={{ pageSize: 4, size: 'small' }}
             />
           </Card>
         </Content>
