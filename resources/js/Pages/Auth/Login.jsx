@@ -1,100 +1,215 @@
-import Checkbox from '@/Components/Checkbox';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
-import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import { Head, router } from '@inertiajs/react';
+import axios from 'axios';
+import { Button, Input } from 'antd';
 
 export default function Login({ status }) {
-    const { data, setData, post, processing, errors, reset } = useForm({
-        employee_code: '',
-        password: '',
-        remember: false,
-    });
+    const [employeeCode, setEmployeeCode] = useState('');
+    const [password, setPassword] = useState('');
 
-    const submit = (e) => {
-        e.preventDefault();
+    const [checking, setChecking] = useState(false);
+    const [checkedUser, setCheckedUser] = useState(null);
+    const [checkError, setCheckError] = useState('');
+    const [loggingIn, setLoggingIn] = useState(false);
 
-        post(route('login'), {
-            onFinish: () => reset('password'),
-        });
+    const handleCheck = async () => {
+        if (!employeeCode || !password) {
+            setCheckError('Vui lòng nhập mã nhân viên và mật khẩu');
+            return;
+        }
+        setChecking(true);
+        setCheckError('');
+        setCheckedUser(null);
+        try {
+            const res = await axios.post('/auth/check', {
+                employee_code: employeeCode,
+                password,
+            });
+            setCheckedUser(res.data);
+        } catch (e) {
+            setCheckError(
+                e.response?.data?.message || 'Sai mã nhân viên hoặc mật khẩu'
+            );
+        } finally {
+            setChecking(false);
+        }
+    };
+
+    const handleLogin = () => {
+        setLoggingIn(true);
+        router.post(
+            route('login'),
+            {
+                employee_code: employeeCode,
+                password,
+                remember: false,
+            },
+            { onError: () => setLoggingIn(false) }
+        );
+    };
+
+    const labelStyle = {
+        color: 'white',
+        minWidth: 170,
+        display: 'inline-block',
+        fontWeight: 500,
+        fontSize: 15,
+        flexShrink: 0,
+    };
+
+    const rowStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        marginBottom: 12,
     };
 
     return (
-        <GuestLayout>
-            <Head title="Log in" />
+        <>
+            <Head title="Đăng nhập" />
 
-            {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
+            <div
+                style={{
+                    minHeight: '100vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#e8eaf0',
+                    gap: 16,
+                    padding: 24,
+                }}
+            >
+                {status && (
+                    <div style={{ color: '#16a34a', fontSize: 14 }}>{status}</div>
+                )}
 
-            <form onSubmit={submit}>
-                <div>
-                    <InputLabel htmlFor="employee_code" value="Mã nhân viên" />
-
-                    <TextInput
-                        id="employee_code"
-                        type="text"
-                        name="employee_code"
-                        value={data.employee_code}
-                        className="mt-1 block w-full"
-                        autoComplete="username"
-                        isFocused={true}
-                        onChange={(e) => setData('employee_code', e.target.value)}
-                    />
-
-                    <InputError message={errors.employee_code} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
-
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="current-password"
-                        onChange={(e) => setData('password', e.target.value)}
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4 block">
-                    <label className="flex items-center">
-                        <Checkbox
-                            name="remember"
-                            checked={data.remember}
-                            onChange={(e) =>
-                                setData('remember', e.target.checked)
-                            }
-                        />
-                        <span className="ms-2 text-sm text-gray-600">
-                            Remember me
-                        </span>
-                    </label>
-                </div>
-
-                <div className="mt-4 text-center">
-                    <a
-                        href="/"
-                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                {/* ── Khách ── */}
+                <div
+                    style={{
+                        backgroundColor: '#f4a987',
+                        borderRadius: 12,
+                        padding: '24px 32px',
+                        width: '100%',
+                        maxWidth: 540,
+                        display: 'flex',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Button
+                        size="large"
+                        onClick={() => router.visit('/')}
+                        style={{
+                            backgroundColor: 'white',
+                            border: 'none',
+                            fontWeight: 600,
+                            fontSize: 16,
+                            height: 44,
+                            paddingInline: 32,
+                        }}
                     >
-                        Tiếp tục không đăng nhập →
-                    </a>
+                        Đăng Nhập Là Khách
+                    </Button>
                 </div>
 
-                <div className="mt-6">
-                    <PrimaryButton className="w-full justify-center" disabled={processing}>
-                        Đăng nhập
-                    </PrimaryButton>
+                {/* ── Login form ── */}
+                <div
+                    style={{
+                        backgroundColor: '#2b5ea7',
+                        borderRadius: 12,
+                        padding: '24px 32px',
+                        width: '100%',
+                        maxWidth: 540,
+                    }}
+                >
+                    {/* Row: mã nhân viên */}
+                    <div style={rowStyle}>
+                        <span style={labelStyle}>Mã số nhân viên :</span>
+                        <Input
+                            value={employeeCode}
+                            onChange={(e) => setEmployeeCode(e.target.value)}
+                            onPressEnter={handleCheck}
+                            style={{ flex: 1 }}
+                        />
+                        <Button
+                            loading={checking}
+                            onClick={handleCheck}
+                            style={{
+                                marginLeft: 8,
+                                backgroundColor: '#f5a623',
+                                border: 'none',
+                                color: 'white',
+                                fontWeight: 600,
+                                flexShrink: 0,
+                            }}
+                        >
+                            Kiểm tra
+                        </Button>
+                    </div>
+
+                    {/* Row: password */}
+                    <div style={rowStyle}>
+                        <span style={labelStyle}>Password :</span>
+                        <Input.Password
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onPressEnter={handleCheck}
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+
+                    {/* Error message */}
+                    {checkError && (
+                        <div
+                            style={{
+                                color: '#ffe58f',
+                                marginBottom: 10,
+                                fontSize: 13,
+                            }}
+                        >
+                            ⚠ {checkError}
+                        </div>
+                    )}
+
+                    {/* After successful check */}
+                    {checkedUser && (
+                        <>
+                            {/* Row: greeting */}
+                            <div style={rowStyle}>
+                                <span style={labelStyle}>Xin chào :</span>
+                                <span
+                                    style={{
+                                        color: 'white',
+                                        fontWeight: 600,
+                                        fontSize: 15,
+                                    }}
+                                >
+                                    {checkedUser.name}
+                                </span>
+                            </div>
+
+                            {/* Login button */}
+                            <div style={{ marginTop: 16, textAlign: 'center' }}>
+                                <Button
+                                    loading={loggingIn}
+                                    onClick={handleLogin}
+                                    size="large"
+                                    style={{
+                                        backgroundColor: '#f5a623',
+                                        border: 'none',
+                                        color: 'white',
+                                        fontWeight: 700,
+                                        fontSize: 15,
+                                        height: 48,
+                                        paddingInline: 36,
+                                    }}
+                                >
+                                    Đăng Nhập bằng tài khoản này
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </div>
-            </form>
-        </GuestLayout>
+            </div>
+        </>
     );
 }

@@ -16,6 +16,9 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
+
+    Route::post('auth/check', [AuthenticatedSessionController::class, 'check'])
+        ->name('auth.check');
 });
 
 Route::middleware('auth')->group(function () {

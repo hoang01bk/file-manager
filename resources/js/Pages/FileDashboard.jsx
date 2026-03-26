@@ -17,6 +17,7 @@ const { Title, Text } = Typography;
 export default function FileDashboard({ files, posts = [] }) {
   const { auth } = usePage().props;
   const user = auth?.user ?? null;
+  const displayName = auth?.display_name || user?.name || '';
   const [loading, setLoading] = useState(false);
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
@@ -145,7 +146,7 @@ export default function FileDashboard({ files, posts = [] }) {
           />
           <div style={{ position: 'absolute', bottom: 0, width: '100%', padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <div style={{ color: '#bbb', marginBottom: 8, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              <UserOutlined style={{ marginRight: 6 }} />{user.name}
+              <UserOutlined style={{ marginRight: 6 }} />{displayName}
             </div>
             <Button
               size="small"
@@ -164,7 +165,7 @@ export default function FileDashboard({ files, posts = [] }) {
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Title level={4} style={{ margin: 0 }}>Trao đổi thông tin và dữ liệu tạm thời</Title>
           {user
-            ? <Text type="secondary">Chào mừng, <strong>{user.name}</strong></Text>
+            ? <Text type="secondary">Chào mừng, <strong>{displayName}</strong></Text>
             : <a href="/login" style={{ fontSize: 14, color: '#1890ff' }}>Đăng nhập</a>
           }
         </Header>
