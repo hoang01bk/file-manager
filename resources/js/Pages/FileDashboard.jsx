@@ -7,13 +7,16 @@ import {
 import {
   UploadOutlined, DeleteOutlined, FileOutlined, EyeOutlined,
   DashboardOutlined, CloudUploadOutlined, HourglassOutlined,
-  InboxOutlined, DownloadOutlined
+  InboxOutlined, DownloadOutlined, UserOutlined, LogoutOutlined,
+  GlobalOutlined, FolderOpenOutlined
 } from '@ant-design/icons';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
 export default function FileDashboard({ files, posts = [] }) {
+  const { auth } = usePage().props;
+  const user = auth?.user ?? null;
   const [loading, setLoading] = useState(false);
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
@@ -125,10 +128,45 @@ export default function FileDashboard({ files, posts = [] }) {
     <Layout style={{ minHeight: '100vh' }}>
       <Head title="Quản lý File Tập Trung" />
 
-      <Layout style={{ background: '#f0f2f5' }}>
+      {user && (
+        <Sider width={220} theme="dark" style={{ background: '#001628', position: 'fixed', height: '100vh', left: 0, top: 0, bottom: 0, zIndex: 100, overflowY: 'auto' }}>
+          <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+            <Text style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>Quản lý File</Text>
+          </div>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={['dashboard']}
+            style={{ background: '#001628', borderRight: 0, marginTop: 8 }}
+            items={[
+              { key: 'dashboard', icon: <GlobalOutlined />, label: <a href="/">Bảng tin chung</a> },
+              { key: 'my-files', icon: <FolderOpenOutlined />, label: <a href="/my-files">File cá nhân</a> },
+            ]}
+          />
+          <div style={{ position: 'absolute', bottom: 0, width: '100%', padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ color: '#bbb', marginBottom: 8, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <UserOutlined style={{ marginRight: 6 }} />{user.name}
+            </div>
+            <Button
+              size="small"
+              danger
+              icon={<LogoutOutlined />}
+              onClick={() => router.post('/logout')}
+              style={{ width: '100%' }}
+            >
+              Đăng xuất
+            </Button>
+          </div>
+        </Sider>
+      )}
+
+      <Layout style={{ background: '#f0f2f5', marginLeft: user ? 220 : 0 }}>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Title level={4} style={{ margin: 0 }}>Trao đổi thông tin và dữ liệu tạm thời</Title>
-          <Text type="secondary">Chào mừng, Developer</Text>
+          {user
+            ? <Text type="secondary">Chào mừng, <strong>{user.name}</strong></Text>
+            : <a href="/login" style={{ fontSize: 14, color: '#1890ff' }}>Đăng nhập</a>
+          }
         </Header>
 
         <Content style={{ margin: '24px' }}>

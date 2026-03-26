@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\MyFileController;
 
 
 // Route::get('/', function () {
@@ -48,5 +49,14 @@ Route::middleware('auth')->group(function () {
 
 // Routes for posts
 Route::post('/posts', [PostController::class, 'store']);
+
+// Routes for personal files (requires auth)
+Route::middleware('auth')->group(function () {
+    Route::get('/my-files', [MyFileController::class, 'index'])->name('my-files.index');
+    Route::post('/my-files/upload', [MyFileController::class, 'store'])->name('my-files.store');
+    Route::delete('/my-files/{id}', [MyFileController::class, 'destroy'])->name('my-files.destroy');
+    Route::get('/my-files/{id}/download', [MyFileController::class, 'download'])->name('my-files.download');
+    Route::get('/my-files/{id}/preview', [MyFileController::class, 'preview'])->name('my-files.preview');
+});
 
 require __DIR__ . '/auth.php';
