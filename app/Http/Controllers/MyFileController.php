@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\UserUpload;
+use App\Models\UserPost;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -15,8 +16,13 @@ class MyFileController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        $userPosts = UserPost::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return Inertia::render('MyFiles', [
-            'files' => $files,
+            'files'     => $files,
+            'userPosts' => $userPosts,
         ]);
     }
 

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\UserPostController;
 use App\Http\Controllers\MyFileController;
 
 
@@ -57,6 +58,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/my-files/{id}', [MyFileController::class, 'destroy'])->name('my-files.destroy');
     Route::get('/my-files/{id}/download', [MyFileController::class, 'download'])->name('my-files.download');
     Route::get('/my-files/{id}/preview', [MyFileController::class, 'preview'])->name('my-files.preview');
+
+    Route::post('/user-posts', [UserPostController::class, 'store'])->name('user-posts.store');
+    Route::delete('/user-posts/{id}', [UserPostController::class, 'destroy'])->name('user-posts.destroy');
 });
 
 require __DIR__ . '/auth.php';
