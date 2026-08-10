@@ -65,11 +65,8 @@ class FileController extends Controller
         $upload = Upload::findOrFail($id);
 
         if (Storage::disk('public')->exists($upload->file_path)) {
-            $mimeType = Storage::disk('public')->mimeType($upload->file_path);
-            return response()->file(Storage::disk('public')->path($upload->file_path), [
-                'Content-Type' => $mimeType,
-                'Content-Disposition' => 'inline; filename="' . $upload->file_name . '"',
-            ]);
+            // Redirect to direct URL so nginx serves the file directly
+            return redirect('/storage/' . $upload->file_path);
         }
 
         abort(404, 'File không tồn tại.');
