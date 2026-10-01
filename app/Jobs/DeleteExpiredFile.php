@@ -27,8 +27,10 @@ class DeleteExpiredFile implements ShouldQueue
      */
     public function handle(): void
     {
-        if (Storage::disk('public')->exists($this->upload->file_path)) {
-            Storage::disk('public')->delete($this->upload->file_path);
+        $disk = Storage::disk($this->upload->view_only ? 'local' : 'public');
+
+        if ($disk->exists($this->upload->file_path)) {
+            $disk->delete($this->upload->file_path);
         }
         $this->upload->delete();
     }

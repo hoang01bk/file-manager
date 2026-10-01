@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
-  Layout, Menu, Table, Tag, Button, Input, Modal,
+  Layout, Menu, Table, Tag, Button, Input, Modal, Checkbox,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space
 } from 'antd';
 import {
@@ -19,19 +19,35 @@ export default function FileDashboard({ files, posts = [] }) {
   const user = auth?.user ?? null;
   const displayName = auth?.display_name || user?.name || '';
   const [loading, setLoading] = useState(false);
+  const [fileList, setFileList] = useState([]);
+  const [viewOnly, setViewOnly] = useState(false);
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
 
-  const handleUpload = (info) => {
+  const handleFileChange = ({ fileList: nextFileList }) => {
+    setFileList(nextFileList.slice(-1));
+  };
+
+  const handleUploadSubmit = () => {
+    const file = fileList[0]?.originFileObj || fileList[0];
+
+    if (!file) {
+      message.warning('Vui lòng chọn file trước khi tải lên.');
+      return;
+    }
+
     setLoading(true);
     router.post('/upload', {
-      file: info.file,
-      ttl_minutes: ttl
+      file,
+      ttl_minutes: ttl,
+      view_only: viewOnly
     }, {
       forceFormData: true,
       onSuccess: () => {
         message.success('Tải lên thành công!');
+        setFileList([]);
+        setViewOnly(false);
         setLoading(false);
       },
       onError: () => {
@@ -42,6 +58,14 @@ export default function FileDashboard({ files, posts = [] }) {
   };
 
   const columns = [
+    {
+      title: 'Quyền truy cập',
+      key: 'access',
+      width: 140,
+      render: (_, record) => record.view_only
+        ? <Tag color="orange">Chỉ xem</Tag>
+        : <Tag color="blue">Có thể tải</Tag>,
+    },
     {
       title: 'Tên File',
       dataIndex: 'file_name',
@@ -69,7 +93,10 @@ export default function FileDashboard({ files, posts = [] }) {
       key: 'action',
       width: 220,
       align: 'left',
-      render: (_, record) => (
+      render: (_, record) => {
+        const isOwner = user?.id != null && Number(user.id) === Number(record.user_id);
+
+        return (
         <Space>
           <Button
             type="link"
@@ -78,6 +105,7 @@ export default function FileDashboard({ files, posts = [] }) {
           >
             Xem
           </Button>
+          {(!record.view_only || isOwner) && (
           <Button
             type="link"
             icon={<DownloadOutlined />}
@@ -85,6 +113,8 @@ export default function FileDashboard({ files, posts = [] }) {
           >
             Tải về
           </Button>
+          )}
+          {(record.user_id == null || isOwner) && (
           <Button
             type="link"
             danger
@@ -97,8 +127,10 @@ export default function FileDashboard({ files, posts = [] }) {
           >
             Xóa
           </Button>
+          )}
         </Space>
-      ),
+        );
+      },
     },
   ];
 
@@ -245,15 +277,48 @@ export default function FileDashboard({ files, posts = [] }) {
               {/* Upload Box */}
               <Card title="Tải file lên" bordered={false} className="shadow-sm" style={{ flex: 1, display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column' } }}>
                 <Upload.Dragger
-                  customRequest={handleUpload}
+                  beforeUpload={() => false}
+                  onChange={handleFileChange}
+                  fileList={fileList}
+                  maxCount={1}
                   showUploadList={false}
                   disabled={loading}
-                  style={{ background: '#fafafa', borderRadius: '12px', flex: 1 }}
+                  style={{
+                    background: '#fafafa',
+                    borderRadius: '12px',
+                    minHeight: 180,
+                  }}
                 >
                   <p className="ant-upload-drag-icon"><InboxOutlined style={{ color: '#1890ff' }} /></p>
                   <p className="ant-upload-text">Nhấn hoặc kéo thả file vào đây</p>
                   <p className="ant-upload-hint">Hỗ trợ tải lên tập trung, an toàn và tự động dọn dẹp.</p>
                 </Upload.Dragger>
+                {fileList[0] && (
+                  <div style={{
+                    marginTop: 12,
+                    padding: '8px 12px',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                  }}>
+                    <Space style={{ minWidth: 0, flex: 1 }}>
+                      <FileOutlined style={{ color: '#1890ff' }} />
+                      <Text ellipsis={{ tooltip: fileList[0].name }}>
+                        {fileList[0].name}
+                      </Text>
+                    </Space>
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setFileList([])}
+                      aria-label="Bỏ file đã chọn"
+                    />
+                  </div>
+                )}
                 <div style={{ padding: '16px 0 0' }}>
                   <Text strong style={{ display: 'block', marginBottom: 12 }}>Thiết lập thời gian xóa:</Text>
                   <Select
@@ -270,6 +335,28 @@ export default function FileDashboard({ files, posts = [] }) {
                       { value: 10080, label: 'Xóa sau 7 ngày' },
                     ]}
                   />
+                  {user && (
+                  <div style={{ marginTop: 16, marginBottom: 12 }}>
+                    <Checkbox
+                      checked={viewOnly}
+                      disabled={loading}
+                      onChange={(e) => setViewOnly(e.target.checked)}
+                    >
+                      Chỉ cho phép người khác xem file
+                    </Checkbox>
+                  </div>
+                  )}
+                  <Button
+                    type="primary"
+                    icon={<UploadOutlined />}
+                    loading={loading}
+                    disabled={fileList.length === 0}
+                    onClick={handleUploadSubmit}
+                    block
+                    style={{ marginTop: 12 }}
+                  >
+                    Tải file lên
+                  </Button>
                   <Text type="secondary">
                     * File sẽ bị xóa vĩnh viễn khỏi server sau khoảng thời gian này.
                   </Text>
@@ -300,10 +387,23 @@ export default function FileDashboard({ files, posts = [] }) {
         destroyOnClose
       >
         {previewFile && (
-          <iframe
-            src={`/files/${previewFile.id}/preview`}
-            style={{ width: '100%', height: '70vh', border: 'none' }}
-          />
+          isVideoFile(previewFile.file_name) ? (
+            <video
+              controls
+              controlsList="nodownload"
+              playsInline
+              onContextMenu={(event) => event.preventDefault()}
+              style={{ width: '100%', height: '70vh', background: '#000' }}
+            >
+              <source src={`/files/${previewFile.id}/preview`} />
+              Trình duyệt không hỗ trợ phát video này.
+            </video>
+          ) : (
+            <iframe
+              src={`/files/${previewFile.id}/preview`}
+              style={{ width: '100%', height: '70vh', border: 'none' }}
+            />
+          )
         )}
       </Modal>
     </Layout>
@@ -311,6 +411,10 @@ export default function FileDashboard({ files, posts = [] }) {
 }
 
 // Giữ nguyên component đếm ngược
+function isVideoFile(fileName = '') {
+  return /\.(mp4|webm|ogg|mov|m4v)$/i.test(fileName);
+}
+
 function CountdownTag({ expiry }) {
   const [time, setTime] = useState("");
   const [color, setColor] = useState("green");
