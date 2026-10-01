@@ -11,6 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Ngrok terminates HTTPS before forwarding the request to nginx.
+        // Trust its forwarded scheme so Laravel generates HTTPS asset URLs.
+        // $middleware->trustProxies(at: '*');
+
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
