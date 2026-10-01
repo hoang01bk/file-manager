@@ -207,6 +207,22 @@ export default function FileDashboard({ files, posts = [] }) {
             {/* Cột trái: Post */}
             <Col span={14} style={{ display: 'flex' }}>
               <Card title="Trao đổi thông tin" bordered={false} className="shadow-sm" style={{ flex: 1, display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column' } }}>
+                <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
+                  <Input.TextArea
+                    rows={2}
+                    placeholder="Nhập thông tin cần Post..."
+                    onChange={(e) => setPostContent(e.target.value)}
+                    value={postContent}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <Button
+                    type="primary"
+                    onClick={handlePostSubmit}
+                    loading={loading}
+                  >
+                    Gửi Post thông tin
+                  </Button>
+                </div>
                 <div style={{ height: 420, overflowY: 'auto', marginBottom: '12px' }}>
                   {posts.length > 0 ? posts.map((post, index) => {
                     const isLeft = index % 2 === 0;
@@ -233,22 +249,6 @@ export default function FileDashboard({ files, posts = [] }) {
                       <Text type="secondary">Chưa có thông báo nào.</Text>
                     </div>
                   )}
-                </div>
-                <div style={{ marginTop: 'auto' }}>
-                  <Input.TextArea
-                    rows={2}
-                    placeholder="Nhập thông tin cần Post..."
-                    onChange={(e) => setPostContent(e.target.value)}
-                    value={postContent}
-                    style={{ marginBottom: '8px' }}
-                  />
-                <Button
-                  type="primary"
-                  onClick={handlePostSubmit}
-                  loading={loading}
-                >
-                  Gửi Post thông tin
-                </Button>
                 </div>
               </Card>
             </Col>

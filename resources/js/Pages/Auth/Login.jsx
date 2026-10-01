@@ -49,18 +49,15 @@ export default function Login({ status }) {
     };
 
     const labelStyle = {
-        color: 'white',
         minWidth: 170,
         display: 'inline-block',
-        fontWeight: 500,
-        fontSize: 15,
         flexShrink: 0,
     };
 
     const rowStyle = {
         display: 'flex',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
     };
 
     return (
@@ -68,44 +65,20 @@ export default function Login({ status }) {
             <Head title="Đăng nhập" />
 
             <div
-                style={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#e8eaf0',
-                    gap: 16,
-                    padding: 24,
-                }}
+                className="login-page"
             >
                 {status && (
-                    <div style={{ color: '#16a34a', fontSize: 14 }}>{status}</div>
+                    <div className="login-status">{status}</div>
                 )}
 
                 {/* ── Khách ── */}
                 <div
-                    style={{
-                        backgroundColor: '#f4a987',
-                        borderRadius: 12,
-                        padding: '24px 32px',
-                        width: '100%',
-                        maxWidth: 540,
-                        display: 'flex',
-                        justifyContent: 'center',
-                    }}
+                    className="login-guest-card"
                 >
                     <Button
                         size="large"
                         onClick={() => router.visit('/')}
-                        style={{
-                            backgroundColor: 'white',
-                            border: 'none',
-                            fontWeight: 600,
-                            fontSize: 16,
-                            height: 44,
-                            paddingInline: 32,
-                        }}
+                        className="login-guest-button"
                     >
                         Đăng Nhập Là Khách
                     </Button>
@@ -113,17 +86,11 @@ export default function Login({ status }) {
 
                 {/* ── Login form ── */}
                 <div
-                    style={{
-                        backgroundColor: '#2b5ea7',
-                        borderRadius: 12,
-                        padding: '24px 32px',
-                        width: '100%',
-                        maxWidth: 540,
-                    }}
+                    className="login-form-card"
                 >
                     {/* Row: mã nhân viên */}
                     <div style={rowStyle}>
-                        <span style={labelStyle}>Mã số nhân viên :</span>
+                        <span className="login-label" style={labelStyle}>Mã số nhân viên :</span>
                         <Input
                             value={employeeCode}
                             onChange={(e) => setEmployeeCode(e.target.value)}
@@ -133,14 +100,7 @@ export default function Login({ status }) {
                         <Button
                             loading={checking}
                             onClick={handleCheck}
-                            style={{
-                                marginLeft: 8,
-                                backgroundColor: '#f5a623',
-                                border: 'none',
-                                color: 'white',
-                                fontWeight: 600,
-                                flexShrink: 0,
-                            }}
+                            className="login-action-button"
                         >
                             Kiểm tra
                         </Button>
@@ -148,7 +108,7 @@ export default function Login({ status }) {
 
                     {/* Row: password */}
                     <div style={rowStyle}>
-                        <span style={labelStyle}>Password :</span>
+                        <span className="login-label" style={labelStyle}>Password :</span>
                         <Input.Password
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -160,11 +120,7 @@ export default function Login({ status }) {
                     {/* Error message */}
                     {checkError && (
                         <div
-                            style={{
-                                color: '#ffe58f',
-                                marginBottom: 10,
-                                fontSize: 13,
-                            }}
+                            className="login-error"
                         >
                             ⚠ {checkError}
                         </div>
@@ -175,13 +131,9 @@ export default function Login({ status }) {
                         <>
                             {/* Row: greeting */}
                             <div style={rowStyle}>
-                                <span style={labelStyle}>Xin chào :</span>
+                                <span className="login-label" style={labelStyle}>Xin chào :</span>
                                 <span
-                                    style={{
-                                        color: 'white',
-                                        fontWeight: 600,
-                                        fontSize: 15,
-                                    }}
+                                    className="login-user-name"
                                 >
                                     {checkedUser.name}
                                 </span>
@@ -193,15 +145,7 @@ export default function Login({ status }) {
                                     loading={loggingIn}
                                     onClick={handleLogin}
                                     size="large"
-                                    style={{
-                                        backgroundColor: '#f5a623',
-                                        border: 'none',
-                                        color: 'white',
-                                        fontWeight: 700,
-                                        fontSize: 15,
-                                        height: 48,
-                                        paddingInline: 36,
-                                    }}
+                                    className="login-submit-button"
                                 >
                                     Đăng Nhập bằng tài khoản này
                                 </Button>
