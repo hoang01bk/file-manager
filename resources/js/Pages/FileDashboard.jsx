@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
-  Layout, Menu, Table, Tag, Button, Input, Modal, Checkbox,
+  Layout, Menu, Table, Tag, Button, Input, Modal, Image, Checkbox,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space
 } from 'antd';
 import {
@@ -398,6 +398,17 @@ export default function FileDashboard({ files, posts = [] }) {
               <source src={`/files/${previewFile.id}/preview`} />
               Trình duyệt không hỗ trợ phát video này.
             </video>
+          ) : isImageFile(previewFile.file_name) ? (
+            <div style={{ width: '100%', height: '70vh', overflow: 'hidden' }}>
+              <Image
+                src={`/files/${previewFile.id}/preview`}
+                alt={previewFile.file_name}
+                width="100%"
+                height="100%"
+                style={{ objectFit: 'contain' }}
+                preview={{ maxScale: 8, scaleStep: 0.5 }}
+              />
+            </div>
           ) : (
             <iframe
               src={`/files/${previewFile.id}/preview`}
@@ -413,6 +424,10 @@ export default function FileDashboard({ files, posts = [] }) {
 // Giữ nguyên component đếm ngược
 function isVideoFile(fileName = '') {
   return /\.(mp4|webm|ogg|mov|m4v)$/i.test(fileName);
+}
+
+function isImageFile(fileName = '') {
+  return /\.(avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(fileName);
 }
 
 function CountdownTag({ expiry }) {
