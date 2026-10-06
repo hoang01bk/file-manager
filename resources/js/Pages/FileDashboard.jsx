@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
   Layout, Menu, Table, Tag, Button, Input, Modal, Image, Checkbox,
-  Upload, Select, Card, Statistic, Row, Col, message, Typography, Space
+  Upload, Select, Card, Statistic, Row, Col, message, Typography, Space, Pagination
 } from 'antd';
 import {
   UploadOutlined, DeleteOutlined, FileOutlined, EyeOutlined,
@@ -14,7 +14,7 @@ import {
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-export default function FileDashboard({ files, posts = [] }) {
+export default function FileDashboard({ files, posts, stats }) {
   const { auth } = usePage().props;
   const user = auth?.user ?? null;
   const displayName = auth?.display_name || user?.name || '';
@@ -24,6 +24,18 @@ export default function FileDashboard({ files, posts = [] }) {
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
+
+  const handlePageChange = (pageName, page) => {
+    const query = new URLSearchParams(window.location.search);
+    query.set(pageName, String(page));
+
+    router.get(window.location.pathname, Object.fromEntries(query), {
+      only: pageName === 'files_page' ? ['files', 'stats'] : ['posts'],
+      preserveState: true,
+      preserveScroll: true,
+      replace: true,
+    });
+  };
 
   const handleFileChange = ({ fileList: nextFileList }) => {
     setFileList(nextFileList.slice(-1));
@@ -224,7 +236,7 @@ export default function FileDashboard({ files, posts = [] }) {
                   </Button>
                 </div>
                 <div style={{ height: 420, overflowY: 'auto', marginBottom: '12px' }}>
-                  {posts.length > 0 ? posts.map((post, index) => {
+                  {posts.data.length > 0 ? posts.data.map((post, index) => {
                     const isLeft = index % 2 === 0;
                     return (
                       <div key={post.id} style={{ display: 'flex', justifyContent: isLeft ? 'flex-start' : 'flex-end', marginBottom: '10px' }}>
@@ -250,6 +262,15 @@ export default function FileDashboard({ files, posts = [] }) {
                     </div>
                   )}
                 </div>
+                <Pagination
+                  current={posts.current_page}
+                  pageSize={posts.per_page}
+                  total={posts.total}
+                  size="small"
+                  showSizeChanger={false}
+                  hideOnSinglePage
+                  onChange={(page) => handlePageChange('posts_page', page)}
+                />
               </Card>
             </Col>
 
@@ -259,7 +280,7 @@ export default function FileDashboard({ files, posts = [] }) {
               <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                 <Col span={8}>
                   <Card bordered={false} className="shadow-sm" bodyStyle={{ padding: '16px' }}>
-                    <Statistic title="Files đang lưu trữ" value={files.length} prefix={<FileOutlined />} valueStyle={{ color: '#3f51b5' }} />
+                    <Statistic title="Files đang lưu trữ" value={files.total} prefix={<FileOutlined />} valueStyle={{ color: '#3f51b5' }} />
                   </Card>
                 </Col>
                 <Col span={8}>
@@ -269,7 +290,7 @@ export default function FileDashboard({ files, posts = [] }) {
                 </Col>
                 <Col span={8}>
                   <Card bordered={false} className="shadow-sm" bodyStyle={{ padding: '16px' }}>
-                    <Statistic title="Sắp hết hạn (24h)" value={files.filter(f => new Date(f.expired_at) - new Date() < 86400000).length} valueStyle={{ color: '#cf1322' }} prefix={<HourglassOutlined />} />
+                    <Statistic title="Sắp hết hạn (24h)" value={stats.expiring_files} valueStyle={{ color: '#cf1322' }} prefix={<HourglassOutlined />} />
                   </Card>
                 </Col>
               </Row>
@@ -369,9 +390,16 @@ export default function FileDashboard({ files, posts = [] }) {
           <Card title="Dữ liệu tạm thời" bordered={false} className="shadow-sm">
             <Table
               columns={columns}
-              dataSource={files}
+              dataSource={files.data}
               rowKey="id"
-              pagination={{ pageSize: 4, size: 'small' }}
+              pagination={{
+                current: files.current_page,
+                pageSize: files.per_page,
+                total: files.total,
+                size: 'small',
+                showSizeChanger: false,
+                onChange: (page) => handlePageChange('files_page', page),
+              }}
             />
           </Card>
         </Content>
