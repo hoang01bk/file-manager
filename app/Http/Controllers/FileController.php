@@ -3,7 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Upload;
+use App\Models\Post;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Inertia\Inertia;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -13,12 +17,33 @@ class FileController extends Controller
     public function index()
     {
         return Inertia::render('FileDashboard', [
-            'files' => Upload::orderBy('created_at', 'desc')->get(),
-            'posts' => \App\Models\Post::where('expires_at', '>', now())
-                ->orWhereNull('expires_at')
-                ->orderBy('created_at', 'desc')
-                ->get(),
+            'files' => fn () => $this->paginateDashboard(
+                Upload::orderByDesc('created_at')->orderByDesc('id'),
+                4,
+                'files_page',
+            ),
+            'posts' => fn () => $this->paginateDashboard(
+                Post::where(fn (Builder $query) => $query
+                    ->where('expires_at', '>', now())
+                    ->orWhereNull('expires_at'))
+                    ->orderByDesc('created_at')->orderByDesc('id'),
+                10,
+                'posts_page',
+            ),
+            'stats' => fn () => [
+                'expiring_files' => Upload::where('expired_at', '<', now()->addDay())->count(),
+            ],
         ]);
+    }
+
+    private function paginateDashboard(Builder $query, int $perPage, string $pageName): LengthAwarePaginator
+    {
+        $total = (clone $query)->toBase()->getCountForPagination();
+        // Keep the last page usable after its final item has been deleted or expired.
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min(Paginator::resolveCurrentPage($pageName), $lastPage);
+
+        return $query->paginate($perPage, ['*'], $pageName, $page, $total)->withQueryString();
     }
 
     public function store(Request $request)
