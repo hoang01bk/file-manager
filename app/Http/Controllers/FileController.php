@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Upload;
 use App\Models\Post;
+use App\Models\Upload;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
-use Inertia\Inertia;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class FileController extends Controller
 {
@@ -71,20 +72,22 @@ class FileController extends Controller
 
     public function destroy($id)
     {
-        $upload = Upload::findOrFail($id);
+        DB::transaction(function () use ($id) {
+            $upload = Upload::lockForUpdate()->findOrFail($id);
 
-        // Files uploaded by a logged-in user can only be deleted by that user.
-        // Legacy anonymous uploads keep the previous behaviour because they
-        // do not have an owner to authorize against.
-        abort_unless($upload->user_id === null || $this->isOwner($upload), 403);
+            // Files uploaded by a logged-in user can only be deleted by that user.
+            // Legacy anonymous uploads keep the previous behaviour because they
+            // do not have an owner to authorize against.
+            abort_unless($upload->user_id === null || $this->isOwner($upload), 403);
 
-        $disk = Storage::disk($this->storageDisk($upload));
+            $disk = Storage::disk($this->storageDisk($upload));
 
-        if ($disk->exists($upload->file_path)) {
-            $disk->delete($upload->file_path);
-        }
+            if ($disk->exists($upload->file_path)) {
+                $disk->delete($upload->file_path);
+            }
 
-        $upload->delete();
+            $upload->delete();
+        });
 
         return back()->with('message', 'Đã xóa file thành công!');
     }
@@ -96,13 +99,12 @@ class FileController extends Controller
         if ($upload->view_only && ! $this->isOwner($upload)) {
             abort(403, 'File này chỉ cho phép xem.');
         }
-        
+
         $disk = Storage::disk($this->storageDisk($upload));
 
         if ($disk->exists($upload->file_path)) {
             return $disk->download($upload->file_path, $upload->file_name);
         }
-
 
         return back()->with('error', 'File không tồn tại trên hệ thống.');
     }

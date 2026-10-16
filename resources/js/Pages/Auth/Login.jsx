@@ -28,7 +28,9 @@ export default function Login({ status }) {
             setCheckedUser(res.data);
         } catch (e) {
             setCheckError(
-                e.response?.data?.message || 'Sai mã nhân viên hoặc mật khẩu'
+                e.response?.status === 419
+                    ? 'Phiên làm việc đã thay đổi hoặc hết hạn. Vui lòng tải lại trang rồi kiểm tra lại.'
+                    : e.response?.data?.message || 'Sai mã nhân viên hoặc mật khẩu'
             );
         } finally {
             setChecking(false);
@@ -44,7 +46,7 @@ export default function Login({ status }) {
                 password,
                 remember: false,
             },
-            { onError: () => setLoggingIn(false) }
+            { onFinish: () => setLoggingIn(false) }
         );
     };
 

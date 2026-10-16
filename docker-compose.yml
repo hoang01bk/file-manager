@@ -46,28 +46,52 @@ services:
       - app-network
 
   # 4. Queue Worker (Xử lý xóa file hết hạn)
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: file-manager-worker
-    restart: unless-stopped
-    command: php artisan queue:work --verbose --tries=3 --timeout=90
-    volumes:
-      - .:/var/www
-    networks:
-      - app-network
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: file-manager-worker
+  #   restart: unless-stopped
+  #   command: php artisan queue:work --verbose --tries=3 --timeout=90
+  #   volumes:
+  #     - .:/var/www
+  #   networks:
+  #     - app-network
 
   # 5. Scheduler (Quét file hết hạn mỗi phút)
-  scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: file-manager-scheduler
+  # scheduler:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: file-manager-scheduler
+  #   restart: unless-stopped
+  #   command: php artisan schedule:work
+  #   volumes:
+  #     - .:/var/www
+  #   networks:
+  #     - app-network
+
+  onlyoffice:
+    image: onlyoffice/documentserver:9.3
+    container_name: file-manager-onlyoffice
     restart: unless-stopped
-    command: php artisan schedule:work
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Set ONLYOFFICE_JWT_SECRET in .env}
+      JWT_IN_BODY: "true"
+      # Laravel's signed URLs are served by webserver on the private Docker network.
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
     volumes:
-      - .:/var/www
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_lib:/var/lib/onlyoffice
+      - onlyoffice_logs:/var/log/onlyoffice
+    shm_size: '256mb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
     networks:
       - app-network
 
@@ -79,3 +103,6 @@ volumes:
   db_data:
     driver: local
   build_assets:
+  onlyoffice_data:
+  onlyoffice_lib:
+  onlyoffice_logs:

@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\UserUpload;
 use App\Models\UserPost;
+use App\Models\UserUpload;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class MyFileController extends Controller
 {
@@ -21,7 +22,7 @@ class MyFileController extends Controller
             ->get();
 
         return Inertia::render('MyFiles', [
-            'files'     => $files,
+            'files' => $files,
             'userPosts' => $userPosts,
         ]);
     }
@@ -29,10 +30,10 @@ class MyFileController extends Controller
     public function store(Request $request)
     {
         $file = $request->file('file');
-        $path = $file->store('user-uploads/' . auth()->id(), 'public');
+        $path = $file->store('user-uploads/'.auth()->id(), 'public');
 
         UserUpload::create([
-            'user_id'   => auth()->id(),
+            'user_id' => auth()->id(),
             'file_name' => $file->getClientOriginalName(),
             'file_path' => $path,
             'file_size' => $file->getSize(),
@@ -43,15 +44,18 @@ class MyFileController extends Controller
 
     public function destroy($id)
     {
-        $upload = UserUpload::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+        DB::transaction(function () use ($id) {
+            $upload = UserUpload::where('id', $id)
+                ->where('user_id', auth()->id())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (Storage::disk('public')->exists($upload->file_path)) {
-            Storage::disk('public')->delete($upload->file_path);
-        }
+            if (Storage::disk('public')->exists($upload->file_path)) {
+                Storage::disk('public')->delete($upload->file_path);
+            }
 
-        $upload->delete();
+            $upload->delete();
+        });
 
         return back()->with('message', 'Đã xóa file thành công!');
     }
@@ -77,7 +81,7 @@ class MyFileController extends Controller
 
         if (Storage::disk('public')->exists($upload->file_path)) {
             // Redirect to direct URL so nginx serves the file directly
-            return redirect('/storage/' . $upload->file_path);
+            return redirect('/storage/'.$upload->file_path);
         }
 
         abort(404, 'File không tồn tại.');

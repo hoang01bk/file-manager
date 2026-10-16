@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
+import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
 import {
   Layout, Menu, Table, Tag, Button, Input, Modal, Image, Checkbox,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space, Pagination
@@ -60,12 +61,11 @@ export default function FileDashboard({ files, posts, stats }) {
         message.success('Tải lên thành công!');
         setFileList([]);
         setViewOnly(false);
-        setLoading(false);
       },
-      onError: () => {
-        message.error('Lỗi khi tải file.');
-        setLoading(false);
-      }
+      onError: (errors) => {
+        if (!errors.session) message.error('Lỗi khi tải file.');
+      },
+      onFinish: () => setLoading(false),
     });
   };
 
@@ -103,20 +103,22 @@ export default function FileDashboard({ files, posts, stats }) {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 220,
+      width: 340,
       align: 'left',
       render: (_, record) => {
         const isOwner = user?.id != null && Number(user.id) === Number(record.user_id);
+        const canEdit = isOwner || (record.user_id == null && !record.view_only);
 
         return (
         <Space>
           <Button
             type="link"
             icon={<EyeOutlined />}
-            onClick={() => setPreviewFile(record)}
+            onClick={() => isOfficeFile(record.file_name) ? window.open(officeUrl('shared', record.id), '_blank', 'noopener,noreferrer') : setPreviewFile(record)}
           >
             Xem
           </Button>
+          <OfficeFileActions file={record} scope="shared" canEdit={canEdit && new Date(record.expired_at) > new Date()} />
           {(!record.view_only || isOwner) && (
           <Button
             type="link"
@@ -160,12 +162,11 @@ export default function FileDashboard({ files, posts, stats }) {
       onSuccess: () => {
         message.success('Đã gửi Post thành công!');
         setPostContent("");
-        setLoading(false);
       },
-      onError: () => {
-        message.error('Lỗi khi gửi Post.');
-        setLoading(false);
-      }
+      onError: (errors) => {
+        if (!errors.session) message.error('Lỗi khi gửi Post.');
+      },
+      onFinish: () => setLoading(false),
     });
   };
 

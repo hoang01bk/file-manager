@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
+import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
 import {
     Layout, Menu, Table, Button, Modal,
     Upload, Card, Statistic, Row, Col, message, Typography, Space, Input
@@ -30,12 +31,11 @@ export default function MyFiles({ files, userPosts = [] }) {
             forceFormData: true,
             onSuccess: () => {
                 message.success('Tải lên thành công!');
-                setLoading(false);
             },
-            onError: () => {
-                message.error('Lỗi khi tải file.');
-                setLoading(false);
-            }
+            onError: (errors) => {
+                if (!errors.session) message.error('Lỗi khi tải file.');
+            },
+            onFinish: () => setLoading(false),
         });
     };
 
@@ -48,12 +48,11 @@ export default function MyFiles({ files, userPosts = [] }) {
         router.post('/user-posts', { content: postContent }, {
             onSuccess: () => {
                 setPostContent('');
-                setPostLoading(false);
             },
-            onError: () => {
-                message.error('Lỗi khi gửi.');
-                setPostLoading(false);
+            onError: (errors) => {
+                if (!errors.session) message.error('Lỗi khi gửi.');
             },
+            onFinish: () => setPostLoading(false),
         });
     };
 
@@ -86,16 +85,17 @@ export default function MyFiles({ files, userPosts = [] }) {
         {
             title: 'Thao tác',
             key: 'action',
-            width: 220,
+            width: 340,
             render: (_, record) => (
                 <Space>
                     <Button
                         type="link"
                         icon={<EyeOutlined />}
-                        onClick={() => setPreviewFile(record)}
+                        onClick={() => isOfficeFile(record.file_name) ? window.open(officeUrl('personal', record.id), '_blank', 'noopener,noreferrer') : setPreviewFile(record)}
                     >
                         Xem
                     </Button>
+                    <OfficeFileActions file={record} scope="personal" canEdit={!record.expired_at || new Date(record.expired_at) > new Date()} />
                     <Button
                         type="link"
                         icon={<DownloadOutlined />}
