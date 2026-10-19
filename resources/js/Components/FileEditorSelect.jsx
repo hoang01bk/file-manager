@@ -1,12 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Select, Spin, Typography } from 'antd';
+import { Select, Spin, Typography, message } from 'antd';
 
-export default function FileEditorSelect({ value, onChange, disabled }) {
+export const ALL_USERS = '__all_users__';
+
+export function editorSelectionPayload(values) {
+    const allUsers = values.includes(ALL_USERS);
+    return { all_users_can_edit: allUsers, editor_ids: allUsers ? [] : values };
+}
+
+export default function FileEditorSelect({ value, onChange, disabled, initialUsers }) {
     const [search, setSearch] = useState('');
     const [options, setOptions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    const handleChange = next => {
+        if (next.includes(ALL_USERS) && !value.includes(ALL_USERS)) {
+            onChange([ALL_USERS]);
+            return;
+        }
+        const ids = next.filter(id => id !== ALL_USERS);
+        if (ids.length > 50) {
+            message.warning('Có thể chọn tối đa 50 người hoặc chọn Tất cả người dùng.');
+            return;
+        }
+        onChange(ids);
+    };
+
+    useEffect(() => {
+        if (initialUsers) setOptions(initialUsers.map(user => ({ value: user.id, label: `${user.name} (${user.employee_code})` })));
+    }, [initialUsers]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -40,19 +64,22 @@ export default function FileEditorSelect({ value, onChange, disabled }) {
                 showSearch
                 allowClear
                 value={value}
-                onChange={onChange}
+                onChange={handleChange}
                 onSearch={setSearch}
                 filterOption={false}
-                options={options}
+                options={[{ value: ALL_USERS, label: 'Tất cả người dùng' }, ...options]}
+                loading={loading}
                 disabled={disabled}
-                placeholder="Tìm tên hoặc mã nhân viên (ít nhất 2 ký tự)"
+                placeholder="Chọn tất cả hoặc tìm theo tên/mã nhân viên"
                 notFoundContent={loading ? <Spin size="small" /> : error || (search.trim().length < 2 ? 'Nhập ít nhất 2 ký tự để tìm người dùng.' : 'Không tìm thấy người dùng.')}
                 style={{ width: '100%' }}
-                maxCount={50}
                 status={error ? 'error' : undefined}
             />
+            {error && <Typography.Text type="danger" style={{ display: 'block', marginTop: 6 }}>{error}</Typography.Text>}
             <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
-                Bỏ trống: chỉ bạn được sửa. Người được chọn có thể xem, tải và chỉnh sửa Word/Excel sau khi đăng nhập.
+                {value.includes(ALL_USERS)
+                    ? 'Tất cả tài khoản đã đăng nhập, kể cả tài khoản tạo sau này, có thể xem, tải và chỉnh sửa file.'
+                    : 'Bỏ trống: chỉ bạn được sửa. Chọn tất cả hoặc tìm người theo tên/mã nhân viên (ít nhất 2 ký tự).'}
             </Typography.Text>
         </div>
     );

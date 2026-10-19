@@ -12,10 +12,11 @@ class UserUpload extends Model
 
     protected $hidden = ['office_key'];
 
-    protected $fillable = ['user_id', 'file_name', 'file_path', 'file_size', 'expired_at'];
+    protected $fillable = ['user_id', 'file_name', 'file_path', 'file_size', 'expired_at', 'all_users_can_edit'];
 
     protected $casts = [
         'expired_at' => 'datetime',
+        'all_users_can_edit' => 'boolean',
     ];
 
     public function user()

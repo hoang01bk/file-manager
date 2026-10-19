@@ -70,6 +70,11 @@ require __DIR__ . '/auth.php';
 Route::get('/file-editors', [FileEditorController::class, 'index'])
     ->middleware(['auth', 'throttle:60,1'])->name('file-editors.index');
 
+Route::get('/office/{scope}/{id}/permissions', [FileEditorController::class, 'show'])
+    ->middleware('auth')->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('file-permissions.show');
+Route::patch('/office/{scope}/{id}/permissions', [FileEditorController::class, 'update'])
+    ->middleware('auth')->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('file-permissions.update');
+
 Route::get('/office/{scope}/{id}', [OnlyOfficeController::class, 'show'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.show');
 // ONLYOFFICE accesses these URLs without a browser session. Both require a signed URL;

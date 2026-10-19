@@ -57,7 +57,7 @@ class OnlyOfficeController extends Controller
                 'fileType' => $extension,
                 'key' => $key,
                 'title' => $file->file_name,
-                'url' => $this->storageUrl('office.content', $parameters, $expires),
+                'url' => $this->storageUrl('office.content', $parameters + ($scope === 'personal' ? ['viewer' => $request->user()->id] : []), $expires),
                 'permissions' => ['edit' => $editing, 'download' => $download, 'print' => $download, 'copy' => $download],
             ],
             'editorConfig' => [
@@ -86,6 +86,10 @@ class OnlyOfficeController extends Controller
         $file = $this->file($scope, $id);
         $this->assertAvailable($file);
         abort_unless($file->office_key && hash_equals($file->office_key, (string) $request->query('key')), 403);
+        if ($scope === 'personal') {
+            $viewer = (string) $request->query('viewer');
+            abort_unless(ctype_digit($viewer) && (int) $viewer > 0 && $file->canEditOffice((int) $viewer), 403);
+        }
 
         return response()->file(Storage::disk($this->disk($file))->path($file->file_path), ['Cache-Control' => 'no-store'])->setPrivate();
     }

@@ -14,6 +14,7 @@ class MyFileController extends Controller
     public function index()
     {
         $files = UserUpload::where(fn ($query) => $query->where('user_id', auth()->id())
+            ->orWhere('all_users_can_edit', true)
             ->orWhereHas('editors', fn ($editors) => $editors->where('users.id', auth()->id())))
             ->with('user:id,name')
             ->orderBy('created_at', 'desc')
@@ -41,8 +42,9 @@ class MyFileController extends Controller
                 'file_name' => $file->getClientOriginalName(),
                 'file_path' => $path,
                 'file_size' => $file->getSize(),
+                'all_users_can_edit' => $request->boolean('all_users_can_edit'),
             ]);
-            $upload->editors()->sync(array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
+            $upload->editors()->sync($upload->all_users_can_edit ? [] : array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
         });
 
         return back();

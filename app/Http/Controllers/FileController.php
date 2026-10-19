@@ -62,9 +62,10 @@ class FileController extends Controller
                 'file_path' => $path,
                 'expired_at' => Carbon::now()->addMinutes((int) $validated['ttl_minutes']),
                 'view_only' => $viewOnly,
+                'all_users_can_edit' => $request->user() && $request->boolean('all_users_can_edit'),
             ]);
             if ($request->user()) {
-                $upload->editors()->sync(array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
+                $upload->editors()->sync($upload->all_users_can_edit ? [] : array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
             }
         });
 

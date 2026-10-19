@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
-import FileEditorSelect from '@/Components/FileEditorSelect';
+import FileEditorSelect, { editorSelectionPayload } from '@/Components/FileEditorSelect';
+import FilePermissionsModal from '@/Components/FilePermissionsModal';
 import {
     Layout, Menu, Table, Button, Modal,
     Upload, Card, Statistic, Row, Col, message, Typography, Space, Input, Tag
@@ -9,7 +10,7 @@ import {
 import {
     DeleteOutlined, FileOutlined, EyeOutlined, CloudUploadOutlined,
     InboxOutlined, DownloadOutlined, UploadOutlined,
-    UserOutlined, LogoutOutlined, GlobalOutlined, FolderOpenOutlined, SendOutlined
+    UserOutlined, LogoutOutlined, GlobalOutlined, FolderOpenOutlined, SendOutlined, SettingOutlined
 } from '@ant-design/icons';
 
 const { Header, Content, Sider } = Layout;
@@ -23,6 +24,7 @@ export default function MyFiles({ files, userPosts = [] }) {
     const [fileList, setFileList] = useState([]);
     const [editorIds, setEditorIds] = useState([]);
     const [previewFile, setPreviewFile] = useState(null);
+    const [permissionsFile, setPermissionsFile] = useState(null);
     const [postContent, setPostContent] = useState('');
     const [postLoading, setPostLoading] = useState(false);
 
@@ -35,7 +37,7 @@ export default function MyFiles({ files, userPosts = [] }) {
         setLoading(true);
         router.post('/my-files/upload', {
             file,
-            editor_ids: editorIds,
+            ...editorSelectionPayload(editorIds),
         }, {
             forceFormData: true,
             onSuccess: () => {
@@ -97,7 +99,7 @@ export default function MyFiles({ files, userPosts = [] }) {
         {
             title: 'Thao tác',
             key: 'action',
-            width: 340,
+            width: 460,
             render: (_, record) => (
                 <Space>
                     <Button
@@ -108,6 +110,9 @@ export default function MyFiles({ files, userPosts = [] }) {
                         Xem
                     </Button>
                     <OfficeFileActions file={record} scope="personal" canEdit={!record.expired_at || new Date(record.expired_at) > new Date()} />
+                    {Number(record.user_id) === Number(user?.id) && (!record.expired_at || new Date(record.expired_at) > new Date()) && (
+                        <Button type="link" icon={<SettingOutlined />} onClick={() => setPermissionsFile(record)}>Quyền truy cập</Button>
+                    )}
                     <Button
                         type="link"
                         icon={<DownloadOutlined />}
@@ -290,6 +295,7 @@ export default function MyFiles({ files, userPosts = [] }) {
                 </Content>
             </Layout>
 
+            <FilePermissionsModal file={permissionsFile} scope="personal" onClose={() => setPermissionsFile(null)} />
             <Modal
                 title={previewFile?.file_name}
                 open={!!previewFile}
