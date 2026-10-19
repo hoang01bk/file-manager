@@ -3,7 +3,6 @@
 namespace App\Models\Concerns;
 
 use App\Models\Upload;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
 trait HasFileEditors
@@ -13,13 +12,14 @@ trait HasFileEditors
         if ($userId !== null && $this->user_id !== null && (int) $this->user_id === $userId) {
             return true;
         }
+        if ($this->all_users_can_edit) {
+            return true;
+        }
         if ($this instanceof Upload && $this->user_id === null && ! $this->view_only) {
             return true;
         }
 
-        return $userId !== null && ($this->all_users_can_edit
-            ? User::whereKey($userId)->exists()
-            : $this->editors()->whereKey($userId)->exists());
+        return $userId !== null && $this->editors()->whereKey($userId)->exists();
     }
 
     public function scopeWithEditorAccess(Builder $query, ?int $userId): void

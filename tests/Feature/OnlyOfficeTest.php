@@ -673,8 +673,8 @@ class OnlyOfficeTest extends TestCase
         $this->getJson("/office/shared/{$file->id}/permissions")->assertForbidden();
         $this->delete("/files/{$file->id}")->assertForbidden();
         auth()->logout();
-        $this->get("/office/shared/{$file->id}?edit=1")->assertForbidden();
-        $this->get("/files/{$file->id}/download")->assertForbidden();
+        $this->get("/office/shared/{$file->id}?edit=1")->assertOk();
+        $this->get("/files/{$file->id}/download")->assertOk();
     }
 
     public function test_personal_files_shared_with_all_users_appear_for_new_accounts_and_allow_saving(): void
@@ -697,7 +697,7 @@ class OnlyOfficeTest extends TestCase
         $this->assertSame('all-users edit', Storage::disk('public')->get($file->file_path));
         $this->delete("/my-files/{$file->id}")->assertNotFound();
         auth()->logout();
-        $this->get("/office/personal/{$file->id}")->assertForbidden();
+        $this->get("/office/personal/{$file->id}")->assertOk();
     }
 
     public function test_owner_can_switch_between_all_users_and_specific_editors(): void
@@ -747,16 +747,44 @@ class OnlyOfficeTest extends TestCase
         $this->assertFalse($file->fresh()->all_users_can_edit);
     }
 
-    public function test_deleted_accounts_cannot_save_through_the_all_users_permission(): void
+    public function test_all_users_allows_guests_to_open_and_save_until_the_owner_revokes_access(): void
     {
         $owner = $this->createUser();
-        $editor = $this->createUser();
-        $file = $this->document($owner);
-        $file->update(['all_users_can_edit' => true]);
-        $url = $this->signedUrl($file, 'callback', editor: $editor->id);
-        $editor->delete();
-        $this->postJson($url, $this->callbackBody($file, 6))->assertForbidden();
-        Http::assertNothingSent();
+        foreach (['shared', 'personal'] as $scope) {
+            $file = $this->document($owner, personal: $scope === 'personal');
+            $file->update(['all_users_can_edit' => true]);
+            $contentUrl = null;
+            $callbackUrl = null;
+            $this->get("/office/{$scope}/{$file->id}?edit=1")->assertOk()
+                ->assertInertia(function (Assert $page) use (&$contentUrl, &$callbackUrl) {
+                    return $page->where('editing', true)->where('backUrl', '/')
+                        ->where('editorConfig.document.url', function ($url) use (&$contentUrl) {
+                            $contentUrl = parse_url($url, PHP_URL_PATH).'?'.parse_url($url, PHP_URL_QUERY);
+
+                            return true;
+                        })->where('editorConfig.editorConfig.callbackUrl', function ($url) use (&$callbackUrl) {
+                            $callbackUrl = parse_url($url, PHP_URL_PATH).'?'.parse_url($url, PHP_URL_QUERY);
+                            parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+                            return $query['editor'] === 'guest';
+                        })->etc();
+                });
+            $file->refresh();
+            $this->get($contentUrl)->assertOk();
+            $body = $this->callbackBody($file, 6);
+            $this->fakeDownload('public editing changes');
+            $this->postJson($callbackUrl, $body)->assertOk()->assertExactJson(['error' => 0]);
+            $this->assertSame('public editing changes', Storage::disk('public')->get($file->file_path));
+            $this->actingAs($owner)->patchJson("/office/{$scope}/{$file->id}/permissions", [
+                'editor_ids' => [], 'all_users_can_edit' => false,
+            ] + ($scope === 'shared' ? ['view_only' => false] : []))->assertOk();
+            auth()->logout();
+            $this->get("/office/{$scope}/{$file->id}?edit=1")->assertForbidden();
+            $this->postJson($callbackUrl, $body)->assertForbidden();
+            if ($scope === 'personal') {
+                $this->get($contentUrl)->assertForbidden();
+            }
+        }
     }
 
     private function createUser(): User

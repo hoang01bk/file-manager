@@ -74,7 +74,7 @@ export default function FilePermissionsModal({ file, scope, onClose }) {
                             Chặn tải file đối với người không được cấp quyền
                         </Checkbox>
                     ) : (
-                        <Typography.Text type="secondary">{editorIds.includes(ALL_USERS) ? 'File này được chia sẻ cho tất cả tài khoản đã đăng nhập.' : 'Chỉ bạn và người được chọn có thể xem, tải và chỉnh sửa file cá nhân.'}</Typography.Text>
+                        <Typography.Text type="secondary">{editorIds.includes(ALL_USERS) ? 'Bất kỳ ai có đường dẫn đều có thể mở và chỉnh sửa tài liệu, kể cả khi chưa đăng nhập.' : 'Chỉ bạn và người được chọn có thể xem, tải và chỉnh sửa file cá nhân.'}</Typography.Text>
                     )}
                     <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
                         Người bị bỏ khỏi danh sách sẽ không được mở để sửa hoặc lưu thay đổi mới. Người đang mở tài liệu cần tải lại trang để cập nhật các nút quyền truy cập.

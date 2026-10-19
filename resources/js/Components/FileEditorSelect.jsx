@@ -78,7 +78,7 @@ export default function FileEditorSelect({ value, onChange, disabled, initialUse
             {error && <Typography.Text type="danger" style={{ display: 'block', marginTop: 6 }}>{error}</Typography.Text>}
             <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
                 {value.includes(ALL_USERS)
-                    ? 'Tất cả tài khoản đã đăng nhập, kể cả tài khoản tạo sau này, có thể xem, tải và chỉnh sửa file.'
+                    ? 'Bất kỳ ai có đường dẫn đều có thể mở và chỉnh sửa tài liệu, kể cả khi chưa đăng nhập.'
                     : 'Bỏ trống: chỉ bạn được sửa. Chọn tất cả hoặc tìm người theo tên/mã nhân viên (ít nhất 2 ký tự).'}
             </Typography.Text>
         </div>

@@ -105,7 +105,7 @@ export default function FileDashboard({ files, posts, stats }) {
       align: 'left',
       render: (_, record) => {
         const isOwner = user?.id != null && Number(user.id) === Number(record.user_id);
-        const canEdit = isOwner || record.is_editor || (user && record.all_users_can_edit) || (record.user_id == null && !record.view_only);
+        const canEdit = isOwner || record.is_editor || record.all_users_can_edit || (record.user_id == null && !record.view_only);
 
         return (
         <Space>
@@ -120,7 +120,7 @@ export default function FileDashboard({ files, posts, stats }) {
           {isOwner && new Date(record.expired_at) > new Date() && (
             <Button type="link" icon={<SettingOutlined />} onClick={() => setPermissionsFile(record)}>Quyền truy cập</Button>
           )}
-          {(!record.view_only || isOwner || record.is_editor || (user && record.all_users_can_edit)) && (
+          {(!record.view_only || isOwner || record.is_editor || record.all_users_can_edit) && (
           <Button
             type="link"
             icon={<DownloadOutlined />}

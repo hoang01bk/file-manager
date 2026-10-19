@@ -25,7 +25,6 @@ class OnlyOfficeController extends Controller
             abort_unless($canEdit, 403);
         }
         $this->assertAvailable($file);
-        $publicEditable = $file instanceof Upload && $file->user_id === null && ! $file->view_only;
         $editing = $request->boolean('edit');
         abort_if($editing && ! $canEdit, 403, 'File này không cho phép bạn chỉnh sửa.');
         $extension = strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION));
@@ -57,14 +56,14 @@ class OnlyOfficeController extends Controller
                 'fileType' => $extension,
                 'key' => $key,
                 'title' => $file->file_name,
-                'url' => $this->storageUrl('office.content', $parameters + ($scope === 'personal' ? ['viewer' => $request->user()->id] : []), $expires),
+                'url' => $this->storageUrl('office.content', $parameters + ($scope === 'personal' ? ['viewer' => $request->user()?->id ?? 'guest'] : []), $expires),
                 'permissions' => ['edit' => $editing, 'download' => $download, 'print' => $download, 'copy' => $download],
             ],
             'editorConfig' => [
                 'mode' => $editing ? 'edit' : 'view',
                 'lang' => 'vi',
                 'user' => ['id' => $request->user() ? (string) $request->user()->id : 'guest-'.hash_hmac('sha256', $request->session()->getId(), config('app.key')), 'name' => $request->user()?->name ?? 'Khách'],
-                'callbackUrl' => $this->storageUrl('office.callback', $parameters + ['editor' => $editing ? ($publicEditable ? 'guest' : $request->user()->id) : 0], $expires),
+                'callbackUrl' => $this->storageUrl('office.callback', $parameters + ['editor' => $editing ? ($request->user()?->id ?? 'guest') : 0], $expires),
                 'customization' => ['forcesave' => true, 'autosave' => true],
             ],
         ];
@@ -74,7 +73,7 @@ class OnlyOfficeController extends Controller
             'fileName' => $file->file_name,
             'editorConfig' => $config,
             'scriptUrl' => rtrim(config('onlyoffice.public_url'), '/').'/web-apps/apps/api/documents/api.js',
-            'backUrl' => $scope === 'personal' ? '/my-files' : '/',
+            'backUrl' => $scope === 'personal' && $request->user() ? '/my-files' : '/',
             'editing' => $editing,
             'editUrl' => $canEdit && ! $editing ? route('office.show', ['scope' => $scope, 'id' => $id, 'edit' => 1], absolute: false) : null,
             'expiresAt' => $expires->toIso8601String(),
@@ -88,7 +87,10 @@ class OnlyOfficeController extends Controller
         abort_unless($file->office_key && hash_equals($file->office_key, (string) $request->query('key')), 403);
         if ($scope === 'personal') {
             $viewer = (string) $request->query('viewer');
-            abort_unless(ctype_digit($viewer) && (int) $viewer > 0 && $file->canEditOffice((int) $viewer), 403);
+            $allowed = $viewer === 'guest'
+                ? $file->canEditOffice(null)
+                : ctype_digit($viewer) && (int) $viewer > 0 && $file->canEditOffice((int) $viewer);
+            abort_unless($allowed, 403);
         }
 
         return response()->file(Storage::disk($this->disk($file))->path($file->file_path), ['Cache-Control' => 'no-store'])->setPrivate();
@@ -188,7 +190,7 @@ class OnlyOfficeController extends Controller
         // The signed callback URL carries the permission granted when the editor opened.
         $editor = (string) $request->query('editor');
         $allowed = $editor === 'guest'
-            ? $file instanceof Upload && $file->user_id === null && ! $file->view_only
+            ? $file->canEditOffice(null)
             : ctype_digit($editor) && (int) $editor > 0 && $file->canEditOffice((int) $editor);
         abort_unless($allowed, 403);
     }
