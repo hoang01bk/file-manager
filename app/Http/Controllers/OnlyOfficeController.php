@@ -20,13 +20,12 @@ class OnlyOfficeController extends Controller
     public function show(Request $request, string $scope, int $id, OnlyOfficeToken $tokens)
     {
         $file = $this->file($scope, $id);
+        $canEdit = $file->canEditOffice($request->user()?->id);
         if ($scope === 'personal') {
-            abort_unless($request->user() && (int) $file->user_id === (int) $request->user()->id, 403);
+            abort_unless($canEdit, 403);
         }
         $this->assertAvailable($file);
-        $owner = $request->user() && $file->user_id !== null && (int) $file->user_id === (int) $request->user()->id;
         $publicEditable = $file instanceof Upload && $file->user_id === null && ! $file->view_only;
-        $canEdit = $owner || $publicEditable;
         $editing = $request->boolean('edit');
         abort_if($editing && ! $canEdit, 403, 'File này không cho phép bạn chỉnh sửa.');
         $extension = strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION));
@@ -48,7 +47,7 @@ class OnlyOfficeController extends Controller
             $expires = $file->expired_at;
         }
         $parameters = ['scope' => $scope, 'id' => $id, 'key' => $key];
-        $download = $owner || ! $file->view_only;
+        $download = $canEdit || ! $file->view_only;
         $config = [
             'documentType' => $extension === 'xlsx' ? 'cell' : 'word',
             'type' => 'desktop',
@@ -65,7 +64,7 @@ class OnlyOfficeController extends Controller
                 'mode' => $editing ? 'edit' : 'view',
                 'lang' => 'vi',
                 'user' => ['id' => $request->user() ? (string) $request->user()->id : 'guest-'.hash_hmac('sha256', $request->session()->getId(), config('app.key')), 'name' => $request->user()?->name ?? 'Khách'],
-                'callbackUrl' => $this->storageUrl('office.callback', $parameters + ['editor' => $editing ? ($publicEditable ? 'guest' : $file->user_id) : 0], $expires),
+                'callbackUrl' => $this->storageUrl('office.callback', $parameters + ['editor' => $editing ? ($publicEditable ? 'guest' : $request->user()->id) : 0], $expires),
                 'customization' => ['forcesave' => true, 'autosave' => true],
             ],
         ];
@@ -186,7 +185,7 @@ class OnlyOfficeController extends Controller
         $editor = (string) $request->query('editor');
         $allowed = $editor === 'guest'
             ? $file instanceof Upload && $file->user_id === null && ! $file->view_only
-            : $file->user_id !== null && $editor === (string) $file->user_id;
+            : ctype_digit($editor) && (int) $editor > 0 && $file->canEditOffice((int) $editor);
         abort_unless($allowed, 403);
     }
 

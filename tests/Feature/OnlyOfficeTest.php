@@ -189,11 +189,58 @@ class OnlyOfficeTest extends TestCase
 
     public function test_expired_document_is_denied_even_if_the_signed_url_is_still_valid(): void
     {
+        config(['app.debug' => true]);
         $file = $this->document();
         $url = $this->signedUrl($file, 'content');
         $file->update(['expired_at' => now()->subMinute()]);
-        $this->get("/office/shared/{$file->id}")->assertStatus(410);
+        $this->get("/office/shared/{$file->id}")->assertStatus(410)
+            ->assertDontSee('Symfony\\Component\\HttpKernel\\Exception')
+            ->assertInertia(fn (Assert $page) => $page->component('FileUnavailable')
+                ->where('status', 410)->where('backUrl', '/')->missing('editorConfig')->etc());
         $this->get($url)->assertStatus(410);
+    }
+
+    public function test_deleted_document_shows_a_friendly_page_for_direct_and_inertia_visits(): void
+    {
+        config(['app.debug' => true]);
+        $file = $this->document();
+        $file->delete();
+        $response = $this->get("/office/shared/{$file->id}");
+        $response->assertNotFound()
+            ->assertInertia(fn (Assert $page) => $page->component('FileUnavailable')
+                ->where('status', 404)->where('backUrl', '/')->etc());
+        $this->get("/office/shared/{$file->id}", [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) $response->viewData('page')['version'],
+            'Accept' => 'text/html',
+        ])
+            ->assertNotFound()->assertHeader('X-Inertia', 'true')
+            ->assertJsonPath('component', 'FileUnavailable')->assertJsonPath('props.status', 404);
+    }
+
+    public function test_expired_personal_document_returns_to_the_personal_file_list(): void
+    {
+        $owner = $this->createUser();
+        $file = $this->document($owner, personal: true);
+        $file->update(['expired_at' => now()->subMinute()]);
+        $this->actingAs($owner)->get("/office/personal/{$file->id}?edit=1")->assertStatus(410)
+            ->assertInertia(fn (Assert $page) => $page->component('FileUnavailable')
+                ->where('status', 410)->where('backUrl', '/my-files')->etc());
+        $file->delete();
+        $this->get("/office/personal/{$file->id}")->assertNotFound()
+            ->assertInertia(fn (Assert $page) => $page->component('FileUnavailable')->where('status', 404)->etc());
+    }
+
+    public function test_signed_content_and_callback_errors_do_not_render_a_frontend_page(): void
+    {
+        $file = $this->document($this->createUser());
+        $contentUrl = $this->signedUrl($file, 'content');
+        $callbackUrl = $this->signedUrl($file, 'callback');
+        $file->update(['expired_at' => now()->subMinute()]);
+        $this->getJson($contentUrl)->assertStatus(410)->assertJsonMissingPath('component');
+        $this->postJson($callbackUrl, $this->callbackBody($file, 2))->assertStatus(410)->assertJsonMissingPath('component');
+        $this->getJson("/office/shared/{$file->id}")->assertStatus(410)->assertJsonMissingPath('component');
+        Http::assertNothingSent();
     }
 
     public function test_editor_and_content_urls_share_a_key_and_expire_with_the_file(): void
@@ -308,6 +355,146 @@ class OnlyOfficeTest extends TestCase
         $this->postJson($url, $this->callbackBody($file, 2, ['url' => 'http://onlyoffice/admin']))
             ->assertStatus(500)->assertExactJson(['error' => 1]);
         Http::assertNothingSent();
+    }
+
+    public function test_authenticated_upload_grants_selected_users_edit_access(): void
+    {
+        $owner = $this->createUser();
+        $editor = $this->createUser();
+        $other = $this->createUser();
+        $this->actingAs($owner)->post('/upload', [
+            'file' => UploadedFile::fake()->create('shared.docx', 1),
+            'ttl_minutes' => 60,
+            'view_only' => true,
+            'editor_ids' => [$editor->id, $owner->id],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $file = Upload::latest('id')->firstOrFail();
+        $this->assertSame([$editor->id], $file->editors()->pluck('users.id')->all());
+        $this->actingAs($editor)->get('/')->assertInertia(fn (Assert $page) => $page
+            ->where('files.data.0.is_editor', true)->etc());
+        $this->get("/office/shared/{$file->id}?edit=1")->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('editing', true)->where('editorConfig.document.permissions.download', true)->etc());
+        $this->get("/files/{$file->id}/download")->assertOk();
+        $this->delete("/files/{$file->id}")->assertForbidden();
+        $this->actingAs($other)->get("/office/shared/{$file->id}?edit=1")->assertForbidden();
+        $this->get("/files/{$file->id}/download")->assertForbidden();
+    }
+
+    public function test_personal_file_is_visible_and_editable_to_selected_users_only(): void
+    {
+        $owner = $this->createUser();
+        $editor = $this->createUser();
+        $other = $this->createUser();
+        $this->actingAs($owner)->post('/my-files/upload', [
+            'file' => UploadedFile::fake()->create('shared.xlsx', 1),
+            'editor_ids' => [$editor->id],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $file = UserUpload::latest('id')->firstOrFail();
+        $this->assertSame([$editor->id], $file->editors()->pluck('users.id')->all());
+        $this->actingAs($editor)->get('/my-files')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('files', 1)->where('files.0.id', $file->id)->where('files.0.user.name', $owner->name)->etc());
+        $this->get("/office/personal/{$file->id}?edit=1")->assertOk();
+        $this->get("/my-files/{$file->id}/preview")->assertRedirect();
+        $this->get("/my-files/{$file->id}/download")->assertOk();
+        $this->delete("/my-files/{$file->id}")->assertNotFound();
+        $this->actingAs($other)->get('/my-files')->assertInertia(fn (Assert $page) => $page->has('files', 0)->etc());
+        $this->get("/office/personal/{$file->id}")->assertForbidden();
+        $this->get("/my-files/{$file->id}/preview")->assertForbidden();
+        $this->get("/my-files/{$file->id}/download")->assertForbidden();
+    }
+
+    public function test_unselected_users_cannot_edit_and_permissions_are_not_shared_between_scopes(): void
+    {
+        $owner = $this->createUser();
+        $editor = $this->createUser();
+        $shared = $this->document($owner);
+        $personal = $this->document($owner, personal: true);
+        $shared->editors()->attach($editor);
+        $this->actingAs($editor)->get("/office/shared/{$shared->id}?edit=1")->assertOk();
+        $this->get("/office/personal/{$personal->id}?edit=1")->assertForbidden();
+        $shared->editors()->detach($editor);
+        $this->get("/office/shared/{$shared->id}?edit=1")->assertForbidden();
+    }
+
+    public function test_selected_editor_callback_uses_the_editor_identity_and_rechecks_permissions(): void
+    {
+        $owner = $this->createUser();
+        $editor = $this->createUser();
+        foreach (['shared', 'personal'] as $scope) {
+            $file = $this->document($owner, personal: $scope === 'personal');
+            $file->editors()->attach($editor);
+            $callbackUrl = null;
+            $this->actingAs($editor)->get("/office/{$scope}/{$file->id}?edit=1")->assertOk()
+                ->assertInertia(function (Assert $page) use (&$callbackUrl, $editor) {
+                    return $page->where('editorConfig.editorConfig.callbackUrl', function ($url) use (&$callbackUrl, $editor) {
+                        $callbackUrl = parse_url($url, PHP_URL_PATH).'?'.parse_url($url, PHP_URL_QUERY);
+                        parse_str(parse_url($url, PHP_URL_QUERY), $parameters);
+
+                        return $parameters['editor'] === (string) $editor->id;
+                    })->etc();
+                });
+            $file->refresh();
+            $body = $this->callbackBody($file, 6);
+            $this->fakeDownload('collaborator changes');
+            $this->postJson($callbackUrl, $body)->assertOk()->assertExactJson(['error' => 0]);
+            $this->assertSame('collaborator changes', Storage::disk('public')->get($file->file_path));
+            $file->editors()->detach($editor);
+            $this->postJson($callbackUrl, $body)->assertForbidden();
+        }
+    }
+
+    public function test_user_search_requires_login_and_returns_only_names_codes_and_ids(): void
+    {
+        $this->getJson('/file-editors?search=Office')->assertUnauthorized();
+        $owner = $this->createUser();
+        $editor = User::factory()->create(['name' => 'Office Recipient', 'employee_code' => 'SEARCH-XYZ']);
+        $this->actingAs($owner)->getJson('/file-editors?search=recipient')->assertOk()
+            ->assertExactJson([['id' => $editor->id, 'name' => $editor->name, 'employee_code' => $editor->employee_code]]);
+        $this->getJson('/file-editors?search=search-xyz')->assertOk()->assertJsonPath('0.id', $editor->id);
+        $this->getJson('/file-editors?search='.urlencode($owner->employee_code))->assertExactJson([]);
+        $this->getJson('/file-editors?search=a')->assertExactJson([]);
+    }
+
+    public function test_anonymous_upload_cannot_assign_editors(): void
+    {
+        $editor = $this->createUser();
+        $this->post('/upload', [
+            'file' => UploadedFile::fake()->create('guest.docx', 1),
+            'ttl_minutes' => 60,
+            'editor_ids' => [$editor->id],
+        ])->assertSessionHasErrors('editor_ids');
+        $this->assertDatabaseCount('uploads', 0);
+        $this->assertDatabaseCount('upload_editors', 0);
+    }
+
+    public function test_invalid_or_duplicate_editor_ids_are_rejected_before_storing_files(): void
+    {
+        $owner = $this->createUser();
+        $editor = $this->createUser();
+        $this->actingAs($owner)->post('/upload', [
+            'file' => UploadedFile::fake()->create('invalid.docx', 1),
+            'ttl_minutes' => 60,
+            'editor_ids' => [99999999],
+        ])->assertSessionHasErrors('editor_ids.0');
+        $this->post('/my-files/upload', [
+            'file' => UploadedFile::fake()->create('duplicate.docx', 1),
+            'editor_ids' => [$editor->id, $editor->id],
+        ])->assertSessionHasErrors('editor_ids.0');
+        $this->assertDatabaseCount('uploads', 0);
+        $this->assertDatabaseCount('user_uploads', 0);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_deleting_a_shared_personal_file_cleans_up_its_permissions(): void
+    {
+        $owner = $this->createUser();
+        $editor = $this->createUser();
+        $file = $this->document($owner, personal: true);
+        $file->editors()->attach($editor);
+        $this->actingAs($owner)->delete("/my-files/{$file->id}")->assertRedirect();
+        $this->assertDatabaseCount('user_upload_editors', 0);
+        $this->actingAs($editor)->get('/my-files')->assertInertia(fn (Assert $page) => $page->has('files', 0)->etc());
+        $this->get("/office/personal/{$file->id}?edit=1")->assertNotFound();
     }
 
     private function createUser(): User

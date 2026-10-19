@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
+import FileEditorSelect from '@/Components/FileEditorSelect';
 import {
   Layout, Menu, Table, Tag, Button, Input, Modal, Image, Checkbox,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space, Pagination
@@ -22,6 +23,7 @@ export default function FileDashboard({ files, posts, stats }) {
   const [loading, setLoading] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [viewOnly, setViewOnly] = useState(false);
+  const [editorIds, setEditorIds] = useState([]);
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
@@ -54,16 +56,18 @@ export default function FileDashboard({ files, posts, stats }) {
     router.post('/upload', {
       file,
       ttl_minutes: ttl,
-      view_only: viewOnly
+      view_only: viewOnly,
+      ...(user ? { editor_ids: editorIds } : {}),
     }, {
       forceFormData: true,
       onSuccess: () => {
         message.success('Tải lên thành công!');
         setFileList([]);
         setViewOnly(false);
+        setEditorIds([]);
       },
       onError: (errors) => {
-        if (!errors.session) message.error('Lỗi khi tải file.');
+        if (!errors.session) message.error(Object.values(errors)[0] || 'Lỗi khi tải file.');
       },
       onFinish: () => setLoading(false),
     });
@@ -107,7 +111,7 @@ export default function FileDashboard({ files, posts, stats }) {
       align: 'left',
       render: (_, record) => {
         const isOwner = user?.id != null && Number(user.id) === Number(record.user_id);
-        const canEdit = isOwner || (record.user_id == null && !record.view_only);
+        const canEdit = isOwner || record.is_editor || (record.user_id == null && !record.view_only);
 
         return (
         <Space>
@@ -119,7 +123,7 @@ export default function FileDashboard({ files, posts, stats }) {
             Xem
           </Button>
           <OfficeFileActions file={record} scope="shared" canEdit={canEdit && new Date(record.expired_at) > new Date()} />
-          {(!record.view_only || isOwner) && (
+          {(!record.view_only || isOwner || record.is_editor) && (
           <Button
             type="link"
             icon={<DownloadOutlined />}
@@ -358,15 +362,18 @@ export default function FileDashboard({ files, posts, stats }) {
                     ]}
                   />
                   {user && (
+                  <>
+                  <FileEditorSelect value={editorIds} onChange={setEditorIds} disabled={loading} />
                   <div style={{ marginTop: 16, marginBottom: 12 }}>
                     <Checkbox
                       checked={viewOnly}
                       disabled={loading}
                       onChange={(e) => setViewOnly(e.target.checked)}
                     >
-                      Chỉ cho phép người khác xem file
+                      Người không được cấp quyền chỉ được xem file
                     </Checkbox>
                   </div>
+                  </>
                   )}
                   <Button
                     type="primary"

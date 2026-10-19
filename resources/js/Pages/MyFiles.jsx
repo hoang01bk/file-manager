@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
+import FileEditorSelect from '@/Components/FileEditorSelect';
 import {
     Layout, Menu, Table, Button, Modal,
-    Upload, Card, Statistic, Row, Col, message, Typography, Space, Input
+    Upload, Card, Statistic, Row, Col, message, Typography, Space, Input, Tag
 } from 'antd';
 import {
     DeleteOutlined, FileOutlined, EyeOutlined, CloudUploadOutlined,
-    InboxOutlined, DownloadOutlined,
+    InboxOutlined, DownloadOutlined, UploadOutlined,
     UserOutlined, LogoutOutlined, GlobalOutlined, FolderOpenOutlined, SendOutlined
 } from '@ant-design/icons';
 
@@ -19,21 +20,31 @@ export default function MyFiles({ files, userPosts = [] }) {
     const user = auth?.user ?? null;
 
     const [loading, setLoading] = useState(false);
+    const [fileList, setFileList] = useState([]);
+    const [editorIds, setEditorIds] = useState([]);
     const [previewFile, setPreviewFile] = useState(null);
     const [postContent, setPostContent] = useState('');
     const [postLoading, setPostLoading] = useState(false);
 
-    const handleUpload = (info) => {
+    const handleUpload = () => {
+        const file = fileList[0]?.originFileObj || fileList[0];
+        if (!file) {
+            message.warning('Vui lòng chọn file trước khi tải lên.');
+            return;
+        }
         setLoading(true);
         router.post('/my-files/upload', {
-            file: info.file,
+            file,
+            editor_ids: editorIds,
         }, {
             forceFormData: true,
             onSuccess: () => {
                 message.success('Tải lên thành công!');
+                setFileList([]);
+                setEditorIds([]);
             },
             onError: (errors) => {
-                if (!errors.session) message.error('Lỗi khi tải file.');
+                if (!errors.session) message.error(Object.values(errors)[0] || 'Lỗi khi tải file.');
             },
             onFinish: () => setLoading(false),
         });
@@ -68,10 +79,11 @@ export default function MyFiles({ files, userPosts = [] }) {
             dataIndex: 'file_name',
             key: 'file_name',
             ellipsis: true,
-            render: (text) => (
+            render: (text, record) => (
                 <Space>
                     <FileOutlined style={{ color: '#1890ff', fontSize: 18 }} />
                     <Text strong>{text}</Text>
+                    {Number(record.user_id) !== Number(user?.id) && <Tag color="blue">Được chia sẻ bởi {record.user?.name || 'người dùng khác'}</Tag>}
                 </Space>
             ),
         },
@@ -103,7 +115,7 @@ export default function MyFiles({ files, userPosts = [] }) {
                     >
                         Tải về
                     </Button>
-                    <Button
+                    {Number(record.user_id) === Number(user?.id) && <Button
                         type="link"
                         danger
                         icon={<DeleteOutlined />}
@@ -114,7 +126,7 @@ export default function MyFiles({ files, userPosts = [] }) {
                         }}
                     >
                         Xóa
-                    </Button>
+                    </Button>}
                 </Space>
             ),
         },
@@ -245,15 +257,19 @@ export default function MyFiles({ files, userPosts = [] }) {
                             {/* Upload */}
                             <Card title="Tải file lên" bordered={false} className="shadow-sm" style={{ flex: 1 }}>
                                 <Upload.Dragger
-                                    customRequest={handleUpload}
-                                    showUploadList={false}
+                                    beforeUpload={() => false}
+                                    fileList={fileList}
+                                    onChange={({ fileList: selected }) => setFileList(selected.slice(-1))}
+                                    maxCount={1}
                                     disabled={loading}
                                     style={{ background: '#fafafa', borderRadius: 12 }}
                                 >
                                     <p className="ant-upload-drag-icon"><InboxOutlined style={{ color: '#1890ff' }} /></p>
                                     <p className="ant-upload-text">Nhấn hoặc kéo thả file vào đây</p>
-                                    <p className="ant-upload-hint">File sẽ được lưu riêng tư, chỉ bạn mới thấy.</p>
+                                    <p className="ant-upload-hint">File chỉ hiển thị với bạn và những người được cấp quyền.</p>
                                 </Upload.Dragger>
+                                <FileEditorSelect value={editorIds} onChange={setEditorIds} disabled={loading} />
+                                <Button type="primary" block icon={<UploadOutlined />} loading={loading} disabled={!fileList.length} onClick={handleUpload}>Tải file lên</Button>
                                 <div style={{ paddingTop: 12 }}>
                                     <Text type="secondary">* File cá nhân được lưu vĩnh viễn, chỉ bị xóa khi bạn tự xóa.</Text>
                                 </div>
