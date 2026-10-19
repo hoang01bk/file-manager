@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
+import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
+import FileEditorSelect from '@/Components/FileEditorSelect';
 import {
   Layout, Menu, Table, Tag, Button, Input, Modal, Image, Checkbox,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space, Pagination
@@ -21,6 +23,7 @@ export default function FileDashboard({ files, posts, stats }) {
   const [loading, setLoading] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [viewOnly, setViewOnly] = useState(false);
+  const [editorIds, setEditorIds] = useState([]);
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
@@ -53,19 +56,20 @@ export default function FileDashboard({ files, posts, stats }) {
     router.post('/upload', {
       file,
       ttl_minutes: ttl,
-      view_only: viewOnly
+      view_only: viewOnly,
+      ...(user ? { editor_ids: editorIds } : {}),
     }, {
       forceFormData: true,
       onSuccess: () => {
         message.success('Tải lên thành công!');
         setFileList([]);
         setViewOnly(false);
-        setLoading(false);
+        setEditorIds([]);
       },
-      onError: () => {
-        message.error('Lỗi khi tải file.');
-        setLoading(false);
-      }
+      onError: (errors) => {
+        if (!errors.session) message.error(Object.values(errors)[0] || 'Lỗi khi tải file.');
+      },
+      onFinish: () => setLoading(false),
     });
   };
 
@@ -103,21 +107,23 @@ export default function FileDashboard({ files, posts, stats }) {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 220,
+      width: 340,
       align: 'left',
       render: (_, record) => {
         const isOwner = user?.id != null && Number(user.id) === Number(record.user_id);
+        const canEdit = isOwner || record.is_editor || (record.user_id == null && !record.view_only);
 
         return (
         <Space>
           <Button
             type="link"
             icon={<EyeOutlined />}
-            onClick={() => setPreviewFile(record)}
+            onClick={() => isOfficeFile(record.file_name) ? window.open(officeUrl('shared', record.id), '_blank', 'noopener,noreferrer') : setPreviewFile(record)}
           >
             Xem
           </Button>
-          {(!record.view_only || isOwner) && (
+          <OfficeFileActions file={record} scope="shared" canEdit={canEdit && new Date(record.expired_at) > new Date()} />
+          {(!record.view_only || isOwner || record.is_editor) && (
           <Button
             type="link"
             icon={<DownloadOutlined />}
@@ -160,12 +166,11 @@ export default function FileDashboard({ files, posts, stats }) {
       onSuccess: () => {
         message.success('Đã gửi Post thành công!');
         setPostContent("");
-        setLoading(false);
       },
-      onError: () => {
-        message.error('Lỗi khi gửi Post.');
-        setLoading(false);
-      }
+      onError: (errors) => {
+        if (!errors.session) message.error('Lỗi khi gửi Post.');
+      },
+      onFinish: () => setLoading(false),
     });
   };
 
@@ -357,15 +362,18 @@ export default function FileDashboard({ files, posts, stats }) {
                     ]}
                   />
                   {user && (
+                  <>
+                  <FileEditorSelect value={editorIds} onChange={setEditorIds} disabled={loading} />
                   <div style={{ marginTop: 16, marginBottom: 12 }}>
                     <Checkbox
                       checked={viewOnly}
                       disabled={loading}
                       onChange={(e) => setViewOnly(e.target.checked)}
                     >
-                      Chỉ cho phép người khác xem file
+                      Người không được cấp quyền chỉ được xem file
                     </Checkbox>
                   </div>
+                  </>
                   )}
                   <Button
                     type="primary"

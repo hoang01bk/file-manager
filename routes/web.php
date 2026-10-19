@@ -8,6 +8,8 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\UserPostController;
 use App\Http\Controllers\MyFileController;
+use App\Http\Controllers\OnlyOfficeController;
+use App\Http\Controllers\FileEditorController;
 
 
 // Route::get('/', function () {
@@ -64,3 +66,15 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__ . '/auth.php';
+
+Route::get('/file-editors', [FileEditorController::class, 'index'])
+    ->middleware(['auth', 'throttle:60,1'])->name('file-editors.index');
+
+Route::get('/office/{scope}/{id}', [OnlyOfficeController::class, 'show'])
+    ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.show');
+// ONLYOFFICE accesses these URLs without a browser session. Both require a signed URL;
+// the callback additionally validates the server's JWT and the authorized editor.
+Route::get('/office/{scope}/{id}/content', [OnlyOfficeController::class, 'content'])
+    ->middleware('signed:relative')->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.content');
+Route::post('/office/{scope}/{id}/callback', [OnlyOfficeController::class, 'callback'])
+    ->middleware('signed:relative')->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.callback');

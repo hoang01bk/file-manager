@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Upload;
+use App\Http\Requests\StoreUploadRequest;
 use App\Models\Post;
+use App\Models\Upload;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
-use Inertia\Inertia;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class FileController extends Controller
 {
@@ -18,7 +19,7 @@ class FileController extends Controller
     {
         return Inertia::render('FileDashboard', [
             'files' => fn () => $this->paginateDashboard(
-                Upload::orderByDesc('created_at')->orderByDesc('id'),
+                Upload::withEditorAccess(auth()->id())->orderByDesc('created_at')->orderByDesc('id'),
                 4,
                 'files_page',
             ),
@@ -46,45 +47,48 @@ class FileController extends Controller
         return $query->paginate($perPage, ['*'], $pageName, $page, $total)->withQueryString();
     }
 
-    public function store(Request $request)
+    public function store(StoreUploadRequest $request)
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file'],
-            'ttl_minutes' => ['required', 'integer', 'min:1'],
-            'view_only' => ['sometimes', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         $file = $validated['file'];
         $viewOnly = auth()->check() && $request->boolean('view_only');
         $path = $file->store('uploads', $viewOnly ? 'local' : 'public');
 
-        Upload::create([
-            'user_id' => auth()->id(),
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
-            'expired_at' => Carbon::now()->addMinutes((int) $validated['ttl_minutes']),
-            'view_only' => $viewOnly,
-        ]);
+        DB::transaction(function () use ($file, $path, $validated, $viewOnly, $request) {
+            $upload = Upload::create([
+                'user_id' => auth()->id(),
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+                'expired_at' => Carbon::now()->addMinutes((int) $validated['ttl_minutes']),
+                'view_only' => $viewOnly,
+            ]);
+            if ($request->user()) {
+                $upload->editors()->sync(array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
+            }
+        });
 
         return back();
     }
 
     public function destroy($id)
     {
-        $upload = Upload::findOrFail($id);
+        DB::transaction(function () use ($id) {
+            $upload = Upload::lockForUpdate()->findOrFail($id);
 
-        // Files uploaded by a logged-in user can only be deleted by that user.
-        // Legacy anonymous uploads keep the previous behaviour because they
-        // do not have an owner to authorize against.
-        abort_unless($upload->user_id === null || $this->isOwner($upload), 403);
+            // Files uploaded by a logged-in user can only be deleted by that user.
+            // Legacy anonymous uploads keep the previous behaviour because they
+            // do not have an owner to authorize against.
+            abort_unless($upload->user_id === null || $this->isOwner($upload), 403);
 
-        $disk = Storage::disk($this->storageDisk($upload));
+            $disk = Storage::disk($this->storageDisk($upload));
 
-        if ($disk->exists($upload->file_path)) {
-            $disk->delete($upload->file_path);
-        }
+            if ($disk->exists($upload->file_path)) {
+                $disk->delete($upload->file_path);
+            }
 
-        $upload->delete();
+            $upload->delete();
+        });
 
         return back()->with('message', 'Đã xóa file thành công!');
     }
@@ -93,16 +97,15 @@ class FileController extends Controller
     {
         $upload = Upload::findOrFail($id);
 
-        if ($upload->view_only && ! $this->isOwner($upload)) {
+        if ($upload->view_only && ! $upload->canEditOffice(auth()->id())) {
             abort(403, 'File này chỉ cho phép xem.');
         }
-        
+
         $disk = Storage::disk($this->storageDisk($upload));
 
         if ($disk->exists($upload->file_path)) {
             return $disk->download($upload->file_path, $upload->file_name);
         }
-
 
         return back()->with('error', 'File không tồn tại trên hệ thống.');
     }
