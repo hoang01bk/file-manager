@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import OfficeFileActions, { isOfficeFile, officeUrl } from '@/Components/OfficeFileActions';
-import FileEditorSelect from '@/Components/FileEditorSelect';
+import FileEditorSelect, { editorSelectionPayload } from '@/Components/FileEditorSelect';
+import FilePermissionsModal from '@/Components/FilePermissionsModal';
 import {
   Layout, Menu, Table, Tag, Button, Input, Modal, Image, Checkbox,
   Upload, Select, Card, Statistic, Row, Col, message, Typography, Space, Pagination
@@ -10,7 +11,7 @@ import {
   UploadOutlined, DeleteOutlined, FileOutlined, EyeOutlined,
   DashboardOutlined, CloudUploadOutlined, HourglassOutlined,
   InboxOutlined, DownloadOutlined, UserOutlined, LogoutOutlined,
-  GlobalOutlined, FolderOpenOutlined
+  GlobalOutlined, FolderOpenOutlined, SettingOutlined
 } from '@ant-design/icons';
 
 const { Header, Content, Sider } = Layout;
@@ -27,6 +28,7 @@ export default function FileDashboard({ files, posts, stats }) {
   const [ttl, setTtl] = useState(1440); // 24 giờ (mặc định)
   const [postContent, setPostContent] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
+  const [permissionsFile, setPermissionsFile] = useState(null);
 
   const handlePageChange = (pageName, page) => {
     const query = new URLSearchParams(window.location.search);
@@ -57,7 +59,7 @@ export default function FileDashboard({ files, posts, stats }) {
       file,
       ttl_minutes: ttl,
       view_only: viewOnly,
-      ...(user ? { editor_ids: editorIds } : {}),
+      ...(user ? editorSelectionPayload(editorIds) : {}),
     }, {
       forceFormData: true,
       onSuccess: () => {
@@ -74,14 +76,6 @@ export default function FileDashboard({ files, posts, stats }) {
   };
 
   const columns = [
-    {
-      title: 'Quyền truy cập',
-      key: 'access',
-      width: 140,
-      render: (_, record) => record.view_only
-        ? <Tag color="orange">Chỉ xem</Tag>
-        : <Tag color="blue">Có thể tải</Tag>,
-    },
     {
       title: 'Tên File',
       dataIndex: 'file_name',
@@ -107,11 +101,11 @@ export default function FileDashboard({ files, posts, stats }) {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 340,
+      width: 460,
       align: 'left',
       render: (_, record) => {
         const isOwner = user?.id != null && Number(user.id) === Number(record.user_id);
-        const canEdit = isOwner || record.is_editor || (record.user_id == null && !record.view_only);
+        const canEdit = isOwner || record.is_editor || record.all_users_can_edit || (record.user_id == null && !record.view_only);
 
         return (
         <Space>
@@ -123,7 +117,10 @@ export default function FileDashboard({ files, posts, stats }) {
             Xem
           </Button>
           <OfficeFileActions file={record} scope="shared" canEdit={canEdit && new Date(record.expired_at) > new Date()} />
-          {(!record.view_only || isOwner || record.is_editor) && (
+          {isOwner && new Date(record.expired_at) > new Date() && (
+            <Button type="link" icon={<SettingOutlined />} onClick={() => setPermissionsFile(record)}>Quyền truy cập</Button>
+          )}
+          {(!record.view_only || isOwner || record.is_editor || record.all_users_can_edit) && (
           <Button
             type="link"
             icon={<DownloadOutlined />}
@@ -370,7 +367,7 @@ export default function FileDashboard({ files, posts, stats }) {
                       disabled={loading}
                       onChange={(e) => setViewOnly(e.target.checked)}
                     >
-                      Người không được cấp quyền chỉ được xem file
+                      Chặn tải file đối với người không được cấp quyền
                     </Checkbox>
                   </div>
                   </>
@@ -413,6 +410,7 @@ export default function FileDashboard({ files, posts, stats }) {
         </Content>
       </Layout>
 
+      <FilePermissionsModal file={permissionsFile} scope="shared" onClose={() => setPermissionsFile(null)} />
       <Modal
         title={previewFile?.file_name}
         open={!!previewFile}

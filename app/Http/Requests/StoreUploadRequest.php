@@ -18,6 +18,7 @@ class StoreUploadRequest extends FormRequest
             'file' => ['required', 'file'],
             'ttl_minutes' => [Rule::requiredIf($this->routeIs('files.store')), 'integer', 'min:1'],
             'view_only' => ['sometimes', 'boolean'],
+            'all_users_can_edit' => [Rule::prohibitedIf(! $this->user()), 'sometimes', 'boolean'],
             'editor_ids' => [Rule::prohibitedIf(! $this->user()), 'sometimes', 'array', 'max:50'],
             'editor_ids.*' => ['required', 'integer', 'distinct', Rule::exists('users', 'id')],
         ];

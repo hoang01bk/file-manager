@@ -12,6 +12,9 @@ trait HasFileEditors
         if ($userId !== null && $this->user_id !== null && (int) $this->user_id === $userId) {
             return true;
         }
+        if ($this->all_users_can_edit) {
+            return true;
+        }
         if ($this instanceof Upload && $this->user_id === null && ! $this->view_only) {
             return true;
         }
