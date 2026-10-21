@@ -5,17 +5,23 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreUploadRequest;
 use App\Models\UserPost;
 use App\Models\UserUpload;
+use App\Services\UploadQuota;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use RuntimeException;
+use Throwable;
 
 class MyFileController extends Controller
 {
-    public function index()
+    public function index(UploadQuota $quota)
     {
+        $query = request()->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $search = trim($query['q'] ?? '');
         $files = UserUpload::where(fn ($query) => $query->where('user_id', auth()->id())
             ->orWhere('all_users_can_edit', true)
             ->orWhereHas('editors', fn ($editors) => $editors->where('users.id', auth()->id())))
+            ->when($search !== '', fn ($query) => $query->whereLike('file_name', '%'.$search.'%'))
             ->with('user:id,name')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -27,25 +33,42 @@ class MyFileController extends Controller
         return Inertia::render('MyFiles', [
             'files' => $files,
             'userPosts' => $userPosts,
+            'storageQuota' => $quota->status(auth()->id()),
+            'filters' => ['q' => $search],
         ]);
     }
 
-    public function store(StoreUploadRequest $request)
+    public function store(StoreUploadRequest $request, UploadQuota $quota)
     {
         $validated = $request->validated();
         $file = $request->file('file');
-        $path = $file->store('user-uploads/'.auth()->id(), 'public');
+        $ownerId = $request->user()->id;
+        $path = null;
 
-        DB::transaction(function () use ($file, $path, $validated, $request) {
-            $upload = UserUpload::create([
-                'user_id' => auth()->id(),
-                'file_name' => $file->getClientOriginalName(),
-                'file_path' => $path,
-                'file_size' => $file->getSize(),
-                'all_users_can_edit' => $request->boolean('all_users_can_edit'),
-            ]);
-            $upload->editors()->sync($upload->all_users_can_edit ? [] : array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
-        });
+        try {
+            DB::transaction(function () use ($file, $validated, $request, $quota, $ownerId, &$path) {
+                $quota->lock($ownerId);
+                $quota->assertFits($ownerId, $file->getSize());
+
+                $path = $file->store('user-uploads/'.$ownerId, 'public');
+                if (! $path) {
+                    throw new RuntimeException('Không thể lưu file đã tải lên.');
+                }
+                $upload = UserUpload::create([
+                    'user_id' => $ownerId,
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'file_size' => $file->getSize(),
+                    'all_users_can_edit' => $request->boolean('all_users_can_edit'),
+                ]);
+                $upload->editors()->sync($upload->all_users_can_edit ? [] : array_diff($validated['editor_ids'] ?? [], [$ownerId]));
+            });
+        } catch (Throwable $exception) {
+            if ($path) {
+                Storage::disk('public')->delete($path);
+            }
+            throw $exception;
+        }
 
         return back();
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreUploadRequest;
 use App\Models\Post;
 use App\Models\Upload;
+use App\Services\UploadQuota;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -12,14 +13,21 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use RuntimeException;
+use Throwable;
 
 class FileController extends Controller
 {
-    public function index()
+    public function index(UploadQuota $quota)
     {
+        $query = request()->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $search = trim($query['q'] ?? '');
+
         return Inertia::render('FileDashboard', [
             'files' => fn () => $this->paginateDashboard(
-                Upload::withEditorAccess(auth()->id())->orderByDesc('created_at')->orderByDesc('id'),
+                Upload::withEditorAccess(auth()->id())
+                    ->when($search !== '', fn (Builder $query) => $query->whereLike('file_name', '%'.$search.'%'))
+                    ->orderByDesc('created_at')->orderByDesc('id'),
                 4,
                 'files_page',
             ),
@@ -32,8 +40,10 @@ class FileController extends Controller
                 'posts_page',
             ),
             'stats' => fn () => [
-                'expiring_files' => Upload::where('expired_at', '<', now()->addDay())->count(),
+                'expiring_files' => Upload::whereBetween('expired_at', [now(), now()->addDay()])->count(),
             ],
+            'storageQuota' => fn () => $quota->status(auth()->id()),
+            'filters' => ['q' => $search],
         ]);
     }
 
@@ -47,27 +57,44 @@ class FileController extends Controller
         return $query->paginate($perPage, ['*'], $pageName, $page, $total)->withQueryString();
     }
 
-    public function store(StoreUploadRequest $request)
+    public function store(StoreUploadRequest $request, UploadQuota $quota)
     {
         $validated = $request->validated();
 
         $file = $validated['file'];
         $viewOnly = auth()->check() && $request->boolean('view_only');
-        $path = $file->store('uploads', $viewOnly ? 'local' : 'public');
+        $disk = $viewOnly ? 'local' : 'public';
+        $ownerId = $request->user()?->id;
+        $path = null;
 
-        DB::transaction(function () use ($file, $path, $validated, $viewOnly, $request) {
-            $upload = Upload::create([
-                'user_id' => auth()->id(),
-                'file_name' => $file->getClientOriginalName(),
-                'file_path' => $path,
-                'expired_at' => Carbon::now()->addMinutes((int) $validated['ttl_minutes']),
-                'view_only' => $viewOnly,
-                'all_users_can_edit' => $request->user() && $request->boolean('all_users_can_edit'),
-            ]);
-            if ($request->user()) {
-                $upload->editors()->sync($upload->all_users_can_edit ? [] : array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
+        try {
+            DB::transaction(function () use ($file, $validated, $viewOnly, $request, $quota, $ownerId, $disk, &$path) {
+                $quota->lock($ownerId);
+                $quota->assertFits($ownerId, $file->getSize());
+
+                $path = $file->store('uploads', $disk);
+                if (! $path) {
+                    throw new RuntimeException('Không thể lưu file đã tải lên.');
+                }
+                $upload = Upload::create([
+                    'user_id' => $ownerId,
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'file_size' => $file->getSize(),
+                    'expired_at' => Carbon::now()->addMinutes((int) $validated['ttl_minutes']),
+                    'view_only' => $viewOnly,
+                    'all_users_can_edit' => $request->user() && $request->boolean('all_users_can_edit'),
+                ]);
+                if ($request->user()) {
+                    $upload->editors()->sync($upload->all_users_can_edit ? [] : array_diff($validated['editor_ids'] ?? [], [$request->user()->id]));
+                }
+            });
+        } catch (Throwable $exception) {
+            if ($path) {
+                Storage::disk($disk)->delete($path);
             }
-        });
+            throw $exception;
+        }
 
         return back();
     }

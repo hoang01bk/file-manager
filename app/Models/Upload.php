@@ -12,7 +12,7 @@ class Upload extends Model
 
     protected $hidden = ['office_key'];
 
-    protected $fillable = ['user_id', 'file_name', 'file_path', 'expired_at', 'view_only', 'all_users_can_edit'];
+    protected $fillable = ['user_id', 'file_name', 'file_path', 'file_size', 'expired_at', 'view_only', 'all_users_can_edit'];
 
     protected function casts(): array
     {

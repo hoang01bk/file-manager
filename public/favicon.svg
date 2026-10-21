@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>File Manager</title>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#1677ff"/>
+  <path d="M12 29q0-4 4-4h10l5 5h17q4 0 4 4v13H12Z" fill="#69b1ff"/>
+  <path d="M28 17q0-3 3-3h10l9 9v20H28Z" fill="#fff"/>
+  <path d="M41 14v9h9Z" fill="#bae0ff"/>
+  <path d="M33 27h11M33 32h7" fill="none" stroke="#1677ff" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M14 35h38q3 0 2 3l-4 12q-1 3-4 3H17q-3 0-4-3l-3-11q-1-4 4-4Z" fill="#d6e4ff"/>
+</svg>
