@@ -6,8 +6,6 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { message } from 'antd';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
 router.on('error', (event) => {
     if (event.detail.errors.session) {
         message.warning(event.detail.errors.session, 8);
@@ -15,7 +13,7 @@ router.on('error', (event) => {
 });
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => title,
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.jsx`,

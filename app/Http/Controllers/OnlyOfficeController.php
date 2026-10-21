@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Upload;
 use App\Models\UserUpload;
 use App\Services\OnlyOfficeToken;
+use App\Services\UploadQuota;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -96,7 +97,7 @@ class OnlyOfficeController extends Controller
         return response()->file(Storage::disk($this->disk($file))->path($file->file_path), ['Cache-Control' => 'no-store'])->setPrivate();
     }
 
-    public function callback(Request $request, string $scope, int $id, OnlyOfficeToken $tokens)
+    public function callback(Request $request, string $scope, int $id, OnlyOfficeToken $tokens, UploadQuota $quota)
     {
         // Use only signed JWT claims, never the unauthenticated request fields.
         $claims = $tokens->decode((string) ($request->input('token') ?: $request->bearerToken()));
@@ -140,18 +141,18 @@ class OnlyOfficeController extends Controller
                 throw new RuntimeException('Invalid document size.');
             }
 
-            DB::transaction(function () use ($request, $scope, $id, $data, $temporary) {
+            DB::transaction(function () use ($request, $scope, $id, $data, $temporary, $quota, $file) {
+                $quota->lock($file->user_id);
                 $file = $this->file($scope, $id, true);
                 $this->assertAvailable($file);
                 $this->assertEditor($request, $file);
                 if ($file->office_key !== $data['key']) {
                     return;
                 }
+                $quota->assertFits($file->user_id, filesize($temporary), (int) ($file->file_size ?? 0));
                 // Filesystem::replace writes to a sibling temporary file and renames atomically.
                 app('files')->replace(Storage::disk($this->disk($file))->path($file->file_path), file_get_contents($temporary));
-                if ($file instanceof UserUpload) {
-                    $file->file_size = filesize($temporary);
-                }
+                $file->file_size = filesize($temporary);
                 if ($data['status'] === 2) {
                     $file->office_key = (string) Str::uuid();
                 }

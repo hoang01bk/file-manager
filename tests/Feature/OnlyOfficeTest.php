@@ -150,6 +150,34 @@ class OnlyOfficeTest extends TestCase
         $this->assertNotSame($file->office_key, $file->fresh()->office_key);
     }
 
+    public function test_office_save_cannot_grow_a_file_past_its_owners_quota(): void
+    {
+        $owner = $this->createUser();
+        $file = $this->document($owner, personal: true);
+        $other = $this->document($owner);
+        $file->update(['file_size' => strlen('original document')]);
+        $other->update(['file_size' => strlen('original document')]);
+        config(['upload_limits.user_quota' => 40]);
+        $url = $this->signedUrl($file, 'callback', personal: true);
+
+        $download = str_repeat('x', 30);
+        Http::fake(function ($request, $options) use (&$download) {
+            file_put_contents($options['sink'], $download);
+
+            return Http::response($download);
+        });
+        $this->postJson($url, $this->callbackBody($file, 6))
+            ->assertStatus(500)->assertExactJson(['error' => 1]);
+        $this->assertSame('original document', Storage::disk('public')->get($file->file_path));
+        $this->assertSame(17, $file->fresh()->file_size);
+
+        config(['upload_limits.user_quota' => 20]);
+        $download = str_repeat('x', 10);
+        $this->postJson($url, $this->callbackBody($file, 6))
+            ->assertOk()->assertExactJson(['error' => 0]);
+        $this->assertSame(10, $file->fresh()->file_size);
+    }
+
     public function test_guest_callback_cannot_modify_a_file_that_was_assigned_to_an_account(): void
     {
         $file = $this->document();
@@ -283,6 +311,7 @@ class OnlyOfficeTest extends TestCase
         $this->postJson($url, $body)->assertOk()->assertExactJson(['error' => 0]);
         Http::assertSentCount(1);
         $this->assertSame('final version', Storage::disk('public')->get($file->file_path));
+        $this->assertSame(strlen('final version'), $file->fresh()->file_size);
     }
 
     public function test_save_of_a_view_only_file_writes_to_the_private_disk(): void
