@@ -34,7 +34,7 @@ export default function FileWorkspace({ personal, storageQuota, query = '', onSe
                     <Button className="workspace-new-button" icon={<PlusOutlined />} onClick={onUpload}>Mới</Button>
                     <nav className="workspace-navigation">
                         <Link href="/" className={!personal ? 'active' : ''} aria-current={!personal ? 'page' : undefined}>
-                            <GlobalOutlined /><span>Không gian chung</span>
+                            <GlobalOutlined /><span>File Sharing</span>
                         </Link>
                         <Link href="/my-files" className={personal ? 'active' : ''} aria-current={personal ? 'page' : undefined}>
                             <FolderOpenOutlined /><span>File cá nhân</span>

@@ -144,7 +144,10 @@ export default function FileManager({ personal = false, files, posts, stats = {}
             <Head title={personal ? 'File cá nhân' : 'Không gian chung'} />
             <section className="workspace-canvas" aria-label="Danh sách file">
                 <div className="workspace-page-heading">
-                    <div><h1>{personal ? 'File cá nhân' : 'Không gian chung'}</h1><p>{personal ? 'Tài liệu của bạn và những file được chia sẻ với bạn.' : 'Một nơi để chia sẻ tài liệu và thông tin với mọi người.'}</p></div>
+                    <div>
+                        <h1>{personal ? 'File cá nhân' : 'File Share'}</h1>
+                        {personal && <p>Tài liệu của bạn và những file được chia sẻ với bạn.</p>}
+                    </div>
                     <div className="workspace-heading-icon">{personal ? <FolderOpenOutlined /> : <GlobalOutlined />}</div>
                 </div>
                 <div className="workspace-summary">
