@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 # --- GIAI ĐOẠN 2: CHẠY BACKEND (PHP-FPM) ---
-FROM php:8.3-fpm
+FROM php:8.3.36-fpm
 
 # Cài đặt system dependencies
 RUN apt-get update && apt-get install -y \
