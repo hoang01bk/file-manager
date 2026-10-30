@@ -10,6 +10,8 @@ use App\Http\Controllers\UserPostController;
 use App\Http\Controllers\MyFileController;
 use App\Http\Controllers\OnlyOfficeController;
 use App\Http\Controllers\FileEditorController;
+use App\Http\Controllers\ServerFileDownloadController;
+use App\Http\Controllers\PdfMergeController;
 
 
 // Route::get('/', function () {
@@ -40,6 +42,10 @@ Route::get('/dashboard', [FileController::class , 'index']);
 // Các route xử lý file (Đã bỏ middleware auth)
 Route::post('/upload', [FileController::class , 'store'])->name('files.store');
 Route::get('/files/{id}/download', [FileController::class , 'download'])->name('files.download');
+Route::get('/server-files/download', ServerFileDownloadController::class)
+    ->middleware('signed:relative')->name('server-files.download');
+Route::post('/pdf/{scope}/{id}/merge', PdfMergeController::class)
+    ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('pdf.merge');
 Route::get('/files/{id}/preview', [FileController::class , 'preview'])->name('files.preview');
 Route::delete('/files/{id}', [FileController::class , 'destroy'])->name('files.destroy');
 
