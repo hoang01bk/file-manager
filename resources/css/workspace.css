@@ -125,6 +125,19 @@
 .workspace-upload-note { display: flex; align-items: flex-start; gap: 9px; padding: 13px; margin-top: 18px; border-radius: 9px; background: #f8fafd; color: #70757a; font-size: 12px; line-height: 1.7; }
 .workspace-upload-note .anticon { margin-top: 3px; color: #8ab4f8; }
 .workspace-upload-quota { border-top: 1px solid #e8eaed; padding-top: 22px; margin-top: 25px; }
+.workspace-pdf-merge { padding-top: 8px; }
+.workspace-pdf-merge .workspace-field-label { display: block; margin: 18px 0 8px; }
+.workspace-pdf-merge-original { display: flex; align-items: center; gap: 12px; padding: 14px; background: #f8fafd; border-radius: 12px; }
+.workspace-pdf-merge-original > .anticon { color: #d93025; font-size: 25px; }
+.workspace-pdf-merge-original > div { min-width: 0; }
+.workspace-pdf-merge-original strong, .workspace-pdf-merge-list strong { display: block; overflow-wrap: anywhere; font-weight: 500; }
+.workspace-pdf-merge small { display: block; color: #80868b; font-size: 12px; margin-top: 3px; }
+.workspace-pdf-merge .ant-upload-drag p { margin: 8px 0 4px; }
+.workspace-pdf-merge-list { list-style: none; padding: 0; margin: 12px 0; }
+.workspace-pdf-merge-list li { display: flex; align-items: center; gap: 3px; padding: 10px 0; border-bottom: 1px solid #eef0f3; }
+.workspace-pdf-merge-list li > div { min-width: 0; flex: 1; margin-right: 5px; }
+.workspace-pdf-merge .ant-alert { margin-top: 12px; }
+.workspace-pdf-merge .workspace-pdf-merge-note { font-size: 12px; margin: 16px 0 0; }
 .workspace-preview-image { height: 70vh; display: grid; place-items: center; overflow: hidden; background: #f8fafd; }
 .workspace-preview-image .ant-image { max-width: 100%; max-height: 100%; }
 @media (min-width: 1500px) { .workspace-body { max-width: 1600px; } }

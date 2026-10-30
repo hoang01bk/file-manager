@@ -11,6 +11,7 @@ import FileWorkspace from '@/Layouts/FileWorkspace';
 import OfficeFileActions, { isOfficeFile, officeUrl } from './OfficeFileActions';
 import FileEditorSelect, { editorSelectionPayload } from './FileEditorSelect';
 import FilePermissionsModal from './FilePermissionsModal';
+import PdfMergeModal from './PdfMergeModal';
 import StorageQuota, { formatStorageSize } from './StorageQuota';
 
 const ttlOptions = [
@@ -39,6 +40,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     const [refreshing, setRefreshing] = useState(false);
     const [previewFile, setPreviewFile] = useState(null);
     const [permissionsFile, setPermissionsFile] = useState(null);
+    const [mergeFile, setMergeFile] = useState(null);
 
     const upload = () => {
         const file = fileList[0]?.originFileObj || fileList[0];
@@ -124,6 +126,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 const canEdit = personal || owner || file.is_editor || file.all_users_can_edit || (file.user_id == null && !file.view_only);
                 const canDownload = personal || !file.view_only || owner || file.is_editor || file.all_users_can_edit;
                 const menu = [
+                    ...(canEdit && available && /\.pdf$/i.test(file.file_name) ? [{ key: 'merge-pdf', icon: <FilePdfOutlined />, label: 'Ghép PDF', onClick: () => setMergeFile(file) }] : []),
                     ...(owner && available ? [{ key: 'permissions', icon: <SettingOutlined />, label: 'Quyền truy cập', onClick: () => setPermissionsFile(file) }] : []),
                     ...((personal ? owner : file.user_id == null || owner) ? [{ key: 'delete', icon: <DeleteOutlined />, label: 'Xóa file', danger: true, onClick: () => removeFile(file) }] : []),
                 ];
@@ -215,6 +218,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 <div className="workspace-upload-quota"><StorageQuota quota={storageQuota} /></div>
             </Drawer>
             <FilePermissionsModal file={permissionsFile} scope={scope} onClose={() => setPermissionsFile(null)} />
+            <PdfMergeModal file={mergeFile} scope={scope} onClose={() => setMergeFile(null)} />
             <Preview file={previewFile} personal={personal} onClose={() => setPreviewFile(null)} />
         </FileWorkspace>
     );

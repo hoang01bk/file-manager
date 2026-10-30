@@ -12,7 +12,7 @@ FROM php:8.3.36-fpm
 # Cài đặt system dependencies
 RUN apt-get update && apt-get install -y \
     libpq-dev \
-    git curl libpng-dev libonig-dev libxml2-dev zip unzip libpq-dev libzip-dev
+    git curl libpng-dev libonig-dev libxml2-dev zip unzip libpq-dev libzip-dev qpdf
 
 # Cài đặt PHP extensions
 RUN docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd zip
