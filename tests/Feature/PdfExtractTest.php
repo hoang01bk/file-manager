@@ -287,6 +287,63 @@ class PdfExtractTest extends TestCase
         $this->assertDatabaseCount('uploads', 1);
     }
 
+    public function test_local_pdf_rotation_follows_source_pages_when_output_is_reordered(): void
+    {
+        $input = $this->local();
+        $original = file_get_contents($input->getRealPath());
+        $response = $this->postJson('/pdf/shared/extract', [
+            'file' => $input, 'name' => 'Rotated', 'pages' => '3,1,4,3', 'ttl_minutes' => 60,
+            'rotations' => json_encode([1 => 270, 3 => 90, 4 => 180]),
+        ])->assertCreated();
+        $copy = Upload::findOrFail($response->json('id'));
+        $path = Storage::disk('public')->path($copy->file_path);
+        $this->assertSame([300, 100, 400], $this->widths($path));
+        $this->assertSame([90, 270, 180], $this->rotations($path));
+        $this->assertSame($original, file_get_contents($input->getRealPath()));
+    }
+
+    public function test_stored_pdf_rotation_is_relative_to_existing_orientation_and_keeps_original(): void
+    {
+        $owner = $this->user();
+        $source = $this->source($owner, personal: true);
+        $path = Storage::disk('public')->path($source->file_path);
+        (new Process(['qpdf', $path, '--rotate=+90:2', '--rotate=+270:4', '--replace-input']))->mustRun();
+        $original = file_get_contents($path);
+        $response = $this->actingAs($owner)->postJson('/pdf/personal/extract', [
+            'source_id' => $source->id, 'name' => 'Rotated', 'pages' => '4,2,1',
+            'rotations' => [4 => 90, 2 => 270, 1 => 0, 3 => 180],
+        ])->assertCreated();
+        $copy = UserUpload::findOrFail($response->json('id'));
+        $newPath = Storage::disk('public')->path($copy->file_path);
+        $this->assertSame([400, 200, 100], $this->widths($newPath));
+        $this->assertSame([0, 0, 0], $this->rotations($newPath));
+        $this->assertSame([0, 90, 0, 270], $this->rotations($path));
+        $this->assertSame($original, file_get_contents($path));
+    }
+
+    public function test_invalid_rotation_angles_and_page_keys_are_rejected(): void
+    {
+        $source = $this->source();
+        foreach ([[1 => 45], [1 => -90], [1 => 360], [1 => 'bad'], [1 => [90]], [0 => 90], [5 => 90], ['bad' => 90], ['01' => 90], '{broken', '90', 'null'] as $rotations) {
+            $this->postJson('/pdf/shared/extract', [
+                'source_id' => $source->id, 'name' => 'Invalid', 'pages' => '1', 'rotations' => $rotations,
+            ])->assertUnprocessable();
+        }
+        config(['pdf_merge.max_selected_pages' => 2]);
+        $this->postJson('/pdf/shared/extract', [
+            'source_id' => $source->id, 'name' => 'Invalid', 'pages' => '1', 'rotations' => [1 => 90, 2 => 180, 3 => 270],
+        ])->assertUnprocessable()->assertJsonValidationErrors('rotations');
+        $this->assertDatabaseCount('uploads', 1);
+        $this->assertSame([$source->file_path], Storage::disk('public')->allFiles());
+    }
+
+    private function rotations(string $path): array
+    {
+        $json = json_decode((new Process(['qpdf', '--json', $path]))->mustRun()->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+
+        return array_map(fn ($page) => $json['qpdf'][1]['obj:'.$page['object']]['value']['/Rotate'] ?? 0, $json['pages']);
+    }
+
     private function user(): User
     {
         return User::factory()->create(['employee_code' => 'SPLIT-'.Str::uuid()]);

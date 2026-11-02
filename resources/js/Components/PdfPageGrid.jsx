@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { Alert, Checkbox, Spin } from 'antd';
+import { Alert, Button, Checkbox, Spin } from 'antd';
+import { RotateLeftOutlined, RotateRightOutlined } from '@ant-design/icons';
 import { getDocument, GlobalWorkerOptions, version } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 
@@ -9,7 +10,7 @@ const assetBase = import.meta.env.DEV
     ? '/node_modules/pdfjs-dist/'
     : `${import.meta.env.BASE_URL}pdfjs/${version}/`;
 
-function PageThumbnail({ pdf, number, failed }) {
+function PageThumbnail({ pdf, number, failed, rotation }) {
     const host = useRef(null);
     const [visible, setVisible] = useState(false);
     const [status, setStatus] = useState('loading');
@@ -37,11 +38,12 @@ function PageThumbnail({ pdf, number, failed }) {
             try {
                 page = await pdf.getPage(number);
                 if (cancelled) return;
-                const original = page.getViewport({ scale: 1 });
+                const angle = (page.rotate + rotation) % 360;
+                const original = page.getViewport({ scale: 1, rotation: angle });
                 setRatio(original.width / original.height);
                 // Render at preview resolution while bounding memory per visible page.
                 const width = Math.min(1600, container.clientWidth * Math.min(window.devicePixelRatio || 1, 2));
-                const viewport = page.getViewport({ scale: Math.min(width / original.width, 2200 / original.height) });
+                const viewport = page.getViewport({ scale: Math.min(width / original.width, 2200 / original.height), rotation: angle });
                 canvas.width = Math.ceil(viewport.width);
                 canvas.height = Math.ceil(viewport.height);
                 renderTask = page.render({ canvasContext: canvas.getContext('2d'), viewport });
@@ -64,7 +66,7 @@ function PageThumbnail({ pdf, number, failed }) {
             canvas.remove();
             if (finished) { canvas.width = 0; canvas.height = 0; }
         };
-    }, [pdf, number, visible]);
+    }, [pdf, number, visible, rotation]);
 
     return <span ref={host} className="workspace-pdf-thumbnail" style={{ aspectRatio: ratio }} aria-label={`Xem trước trang ${number}`}>
         {(failed || status === 'error') ? <span className="workspace-pdf-thumbnail-error">Không tải được ảnh</span>
@@ -72,7 +74,7 @@ function PageThumbnail({ pdf, number, failed }) {
     </span>;
 }
 
-export default function PdfPageGrid({ source, pages, selected, disabled, onToggle }) {
+export default function PdfPageGrid({ source, pages, selected, disabled, onToggle, rotations, onRotate }) {
     const [pdf, setPdf] = useState(null);
     const [error, setError] = useState('');
 
@@ -103,11 +105,23 @@ export default function PdfPageGrid({ source, pages, selected, disabled, onToggl
     return <>
         {error && <Alert type="warning" showIcon title={error} />}
         <div className="workspace-pdf-page-grid" role="group" aria-label="Chọn trang PDF">{pages.map(page => (
-            <Checkbox key={page} className={`workspace-pdf-page${selected.has(page) ? ' selected' : ''}${disabled ? ' disabled' : ''}`}
-                checked={selected.has(page)} disabled={disabled} onChange={event => onToggle(page, event.target.checked)} aria-label={`Trang ${page}`}>
-                <span className="workspace-pdf-page-caption">Trang {page}{selected.has(page) ? ' · Đã chọn' : ' · Bấm vào trang để chọn'}</span>
-                <PageThumbnail pdf={pdf} number={page} failed={!!error} />
-            </Checkbox>
+            <div className="workspace-pdf-page-item" key={page}>
+                <div className="workspace-pdf-page-toolbar">
+                    <span className="workspace-pdf-page-caption">Trang {page}{selected.has(page) ? ' · Đã chọn' : ' · Bấm vào trang để chọn'}</span>
+                    <div className="workspace-pdf-rotate-actions">
+                        <Button size="small" icon={<RotateLeftOutlined />} disabled={disabled} onClick={() => onRotate(page, -90)}
+                            title="Xoay trái 90°" aria-label={`Xoay trái trang ${page} 90 độ`} />
+                        <Button size="small" icon={<RotateRightOutlined />} disabled={disabled} onClick={() => onRotate(page, 90)}
+                            title="Xoay phải 90°" aria-label={`Xoay phải trang ${page} 90 độ`} />
+                        <Button size="small" disabled={disabled || !rotations[page]} onClick={() => onRotate(page, 0)}
+                            title="Khôi phục hướng của trang gốc" aria-label={`Khôi phục hướng gốc trang ${page}`}>Gốc</Button>
+                    </div>
+                </div>
+                <Checkbox className={`workspace-pdf-page${selected.has(page) ? ' selected' : ''}${disabled ? ' disabled' : ''}`}
+                    checked={selected.has(page)} disabled={disabled} onChange={event => onToggle(page, event.target.checked)} aria-label={`Trang ${page}`}>
+                    <PageThumbnail pdf={pdf} number={page} failed={!!error} rotation={rotations[page] || 0} />
+                </Checkbox>
+            </div>
         ))}</div>
     </>;
 }
