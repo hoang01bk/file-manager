@@ -114,18 +114,44 @@
 .storage-quota-caption { display: block; margin-top: 8px; font-size: 11px; color: #9aa0a6; line-height: 1.6; }
 .workspace-upload-drawer .ant-drawer-header-title { gap: 15px; }
 .workspace-upload-drawer .ant-drawer-title { font-size: 20px; font-weight: 500; }
-.workspace-upload-description { color: #70757a; line-height: 1.7; font-size: 13px; margin-bottom: 24px; }
-.workspace-dropzone .ant-upload.ant-upload-drag { background: #f8fafd; border-color: #c6dafc; border-radius: 15px; }
-.workspace-dropzone .ant-upload.ant-upload-drag .ant-upload-btn { padding: 32px 18px; }
-.workspace-dropzone .upload-illustration { display: grid; place-items: center; margin: 0 auto 18px; width: 62px; height: 62px; border-radius: 20px; color: #1a73e8; background: #e8f0fe; font-size: 28px; }
+.workspace-upload-description { color: #70757a; line-height: 1.7; font-size: 13px; margin-bottom: 16px; }
+.workspace-dropzone .ant-upload.ant-upload-drag { height: auto; background: #f8fafd; border-color: #c6dafc; border-radius: 15px; }
+.workspace-dropzone .ant-upload.ant-upload-drag .ant-upload-btn { height: auto; padding: 20px 14px; }
+.workspace-dropzone .upload-illustration { display: grid; place-items: center; margin: 0 auto 12px; width: 44px; height: 44px; border-radius: 14px; color: #1a73e8; background: #e8f0fe; font-size: 23px; }
 .workspace-dropzone .upload-title { font-size: 15px; font-weight: 500; margin: 0 0 7px; }
 .workspace-dropzone .upload-hint { font-size: 12px; color: #80868b; margin: 0; }
-.workspace-upload-settings { margin: 25px 0; }
+.workspace-upload-settings { margin: 18px 0; }
 .workspace-field-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 9px; }
 .workspace-upload-note { display: flex; align-items: flex-start; gap: 9px; padding: 13px; margin-top: 18px; border-radius: 9px; background: #f8fafd; color: #70757a; font-size: 12px; line-height: 1.7; }
 .workspace-upload-note .anticon { margin-top: 3px; color: #8ab4f8; }
-.workspace-upload-quota { border-top: 1px solid #e8eaed; padding-top: 22px; margin-top: 25px; }
+.workspace-upload-quota { border-top: 1px solid #e8eaed; padding-top: 16px; margin-top: 18px; }
 .workspace-pdf-merge { padding-top: 8px; }
+.workspace-heading-actions { display: flex; align-items: center; gap: 14px; }
+.workspace-pdf-extract { padding-top: 8px; }
+.workspace-pdf-extract .workspace-field-label { display: block; margin: 16px 0 8px; }
+.workspace-pdf-extract-upload, .workspace-pdf-extract-source { margin-top: 16px; }
+.workspace-pdf-extract .ant-upload-drag p { margin: 8px 0 4px; }
+.workspace-pdf-extract small { color: #80868b; }
+.workspace-pdf-extract-loading { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 25px 0; color: #70757a; }
+.workspace-pdf-page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 20px 0 12px; }
+.workspace-pdf-page-heading strong { font-weight: 500; }
+.workspace-pdf-page-heading strong .anticon { color: #d93025; }
+.workspace-pdf-page-grid { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 20px; max-height: 70vh; overflow-y: auto; padding: 12px; margin-bottom: 12px; background: #edf0f3; border-radius: 10px; }
+.workspace-pdf-page.ant-checkbox-wrapper { position: relative; display: flex; justify-content: center; width: 100%; max-width: 780px; padding: 12px; border: 1px solid #e2e6eb; border-radius: 10px; cursor: pointer; background: #f8fafd; font-size: 12px; margin: 0 auto; transition: border-color .15s, box-shadow .15s; }
+.workspace-pdf-page:hover { border-color: #8ab4f8; background: #f8fafd; }
+.workspace-pdf-page.selected { border-color: #1a73e8; background: #e8f0fe; color: #174ea6; }
+.workspace-pdf-page.disabled { cursor: default; opacity: .65; }
+.workspace-pdf-page > span:last-child { display: flex; width: 100%; min-width: 0; padding: 0; flex-direction: column; align-items: center; gap: 10px; }
+.workspace-pdf-page > .ant-checkbox { position: absolute; top: 14px; right: 14px; z-index: 1; border-radius: 4px; box-shadow: 0 0 0 3px #fff; }
+.workspace-pdf-page:focus-within { outline: 2px solid #1a73e8; outline-offset: 1px; }
+.workspace-pdf-page.selected { box-shadow: 0 0 0 1px #1a73e8; }
+.workspace-pdf-thumbnail { display: flex; position: relative; width: 100%; aspect-ratio: 3 / 4; align-items: center; justify-content: center; overflow: hidden; background: #fff; border: 1px solid #edf0f3; box-shadow: 0 2px 5px #2021240d; }
+.workspace-pdf-thumbnail canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+.workspace-pdf-thumbnail-error { padding: 12px; color: #80868b; text-align: center; font-size: 11px; }
+.workspace-pdf-page-caption { align-self: flex-start; padding-right: 30px; font-weight: 500; }
+.workspace-pdf-selection-help, .workspace-pdf-extract-note { font-size: 12px; color: #80868b; margin: 8px 0 0; }
+.workspace-pdf-selection-help.invalid { color: #d93025; }
+.workspace-pdf-extract .workspace-pdf-extract-note, .workspace-pdf-extract .ant-alert { margin-top: 14px; }
 .workspace-pdf-merge .workspace-field-label { display: block; margin: 18px 0 8px; }
 .workspace-pdf-merge-original { display: flex; align-items: center; gap: 12px; padding: 14px; background: #f8fafd; border-radius: 12px; }
 .workspace-pdf-merge-original > .anticon { color: #d93025; font-size: 25px; }
