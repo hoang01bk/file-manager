@@ -11,6 +11,7 @@ use App\Http\Controllers\MyFileController;
 use App\Http\Controllers\OnlyOfficeController;
 use App\Http\Controllers\FileEditorController;
 use App\Http\Controllers\PdfMergeController;
+use App\Http\Controllers\PdfExtractController;
 
 
 // Route::get('/', function () {
@@ -43,6 +44,13 @@ Route::post('/upload', [FileController::class , 'store'])->name('files.store');
 Route::get('/files/{id}/download', [FileController::class , 'download'])->name('files.download');
 Route::post('/pdf/{scope}/{id}/merge', PdfMergeController::class)
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('pdf.merge');
+Route::prefix('/pdf/{scope}')->whereIn('scope', ['shared', 'personal'])->group(function () {
+    Route::get('/sources', [PdfExtractController::class, 'sources'])->name('pdf.sources');
+    Route::post('/inspect', [PdfExtractController::class, 'inspect'])->name('pdf.inspect');
+    Route::get('/{id}/info', [PdfExtractController::class, 'info'])->whereNumber('id')->name('pdf.info');
+    Route::get('/{id}/preview', [PdfExtractController::class, 'preview'])->whereNumber('id')->name('pdf.preview');
+    Route::post('/extract', [PdfExtractController::class, 'store'])->name('pdf.extract');
+});
 Route::get('/files/{id}/preview', [FileController::class , 'preview'])->name('files.preview');
 Route::delete('/files/{id}', [FileController::class , 'destroy'])->name('files.destroy');
 

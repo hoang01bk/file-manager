@@ -5,13 +5,14 @@ import {
     ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EyeOutlined, FileExcelOutlined,
     FileImageOutlined, FileOutlined, FilePdfOutlined, FileTextOutlined, FileWordOutlined,
     FolderOpenOutlined, GlobalOutlined, InfoCircleOutlined, MoreOutlined, PlusOutlined,
-    SendOutlined, SettingOutlined, TeamOutlined, UploadOutlined,
+    SendOutlined, SettingOutlined, TeamOutlined, UploadOutlined, ScissorOutlined,
 } from '@ant-design/icons';
 import FileWorkspace from '@/Layouts/FileWorkspace';
 import OfficeFileActions, { isOfficeFile, officeUrl } from './OfficeFileActions';
 import FileEditorSelect, { editorSelectionPayload } from './FileEditorSelect';
 import FilePermissionsModal from './FilePermissionsModal';
 import PdfMergeModal from './PdfMergeModal';
+import PdfExtractModal from './PdfExtractModal';
 import StorageQuota, { formatStorageSize } from './StorageQuota';
 
 const ttlOptions = [
@@ -41,6 +42,8 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     const [previewFile, setPreviewFile] = useState(null);
     const [permissionsFile, setPermissionsFile] = useState(null);
     const [mergeFile, setMergeFile] = useState(null);
+    const [extractOpen, setExtractOpen] = useState(false);
+    const [extractFile, setExtractFile] = useState(null);
 
     const upload = () => {
         const file = fileList[0]?.originFileObj || fileList[0];
@@ -127,6 +130,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 const canDownload = personal || !file.view_only || owner || file.is_editor || file.all_users_can_edit;
                 const menu = [
                     ...(canEdit && available && /\.pdf$/i.test(file.file_name) ? [{ key: 'merge-pdf', icon: <FilePdfOutlined />, label: 'Ghép PDF', onClick: () => setMergeFile(file) }] : []),
+                    ...(canEdit && available && /\.pdf$/i.test(file.file_name) ? [{ key: 'extract-pdf', icon: <ScissorOutlined />, label: 'Tách PDF', onClick: () => { setExtractFile(file); setExtractOpen(true); } }] : []),
                     ...(owner && available ? [{ key: 'permissions', icon: <SettingOutlined />, label: 'Quyền truy cập', onClick: () => setPermissionsFile(file) }] : []),
                     ...((personal ? owner : file.user_id == null || owner) ? [{ key: 'delete', icon: <DeleteOutlined />, label: 'Xóa file', danger: true, onClick: () => removeFile(file) }] : []),
                 ];
@@ -151,7 +155,10 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                         <h1>{personal ? 'File cá nhân' : 'File Share'}</h1>
                         {personal && <p>Tài liệu của bạn và những file được chia sẻ với bạn.</p>}
                     </div>
-                    <div className="workspace-heading-icon">{personal ? <FolderOpenOutlined /> : <GlobalOutlined />}</div>
+                    <div className="workspace-heading-actions">
+                        <Button icon={<ScissorOutlined />} onClick={() => { setExtractFile(null); setExtractOpen(true); }}>Tách PDF</Button>
+                        <div className="workspace-heading-icon">{personal ? <FolderOpenOutlined /> : <GlobalOutlined />}</div>
+                    </div>
                 </div>
                 <div className="workspace-summary">
                     <span className="workspace-summary-item"><FileOutlined /><strong>{personal ? files.length : files.total}</strong> {filters.q ? 'kết quả' : 'file'}</span>
@@ -219,6 +226,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
             </Drawer>
             <FilePermissionsModal file={permissionsFile} scope={scope} onClose={() => setPermissionsFile(null)} />
             <PdfMergeModal file={mergeFile} scope={scope} onClose={() => setMergeFile(null)} />
+            <PdfExtractModal open={extractOpen} initialFile={extractFile} scope={scope} onClose={() => setExtractOpen(false)} />
             <Preview file={previewFile} personal={personal} onClose={() => setPreviewFile(null)} />
         </FileWorkspace>
     );

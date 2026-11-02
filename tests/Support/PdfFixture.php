@@ -4,6 +4,30 @@ namespace Tests\Support;
 
 class PdfFixture
 {
+    public static function pages(array $widths): string
+    {
+        $kids = implode(' ', array_map(fn ($index) => (3 + 2 * $index).' 0 R', array_keys($widths)));
+        $objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids ['.$kids.'] /Count '.count($widths).' >>'];
+        foreach ($widths as $index => $width) {
+            $objects[] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '.$width.' 200] /Contents '.(4 + 2 * $index).' 0 R /Resources << >> >>';
+            $objects[] = "<< /Length 3 >>\nstream\nq Q\nendstream";
+        }
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objects as $index => $object) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($index + 1)." 0 obj\n".$object."\nendobj\n";
+        }
+        $xref = strlen($pdf);
+        $size = count($objects) + 1;
+        $pdf .= "xref\n0 ".$size."\n0000000000 65535 f \n";
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+
+        return $pdf."trailer\n<< /Size ".$size." /Root 1 0 R >>\nstartxref\n".$xref."\n%%EOF\n";
+    }
+
     public static function page(int $width = 100, string $content = 'q Q'): string
     {
         $objects = [
