@@ -17,6 +17,8 @@ Sau khi đọc file:
 
 Khi click chọn, các trang được sắp theo thứ tự tăng dần trong PDF gốc. Khi nhập trực tiếp, thứ tự nhập được giữ nguyên; `4,2-3` tạo các trang 4, 2, 3. Khoảng giảm dần như `4-2` cũng được hỗ trợ. Trang bị lặp chỉ được lấy một lần, giữ vị trí xuất hiện đầu tiên.
 
+Mỗi trang có nút **xoay trái/phải 90°** và **Gốc** để khôi phục hướng ban đầu. Preview và PDF kết quả đều áp dụng góc xoay tương đối so với hướng gốc, kể cả PDF đã có thông tin xoay từ trước. Xoay trang không tự chọn trang; chỉ trang được chọn mới được đưa vào kết quả. Góc xoay giữ khi chuyển nhóm trang/chọn lại trang và được xóa khi đổi PDF nguồn. API nhận thêm `rotations` dạng map số trang gốc → 0/90/180/270; backend chuyển sang vị trí trang đầu ra trước khi dùng [qpdf --rotate](https://qpdf.readthedocs.io/en/stable/cli.html#option-rotate).
+
 Không chọn trang nào, chọn trang 0, vượt số trang của PDF hoặc nhập biểu thức sai đều bị từ chối. Giới hạn mặc định là 5.000 trang và 100 MiB cho mỗi bản kết quả; UI hiển thị dung lượng là 100 MB, thống nhất với chức năng upload/ghép PDF.
 
 ## Quyền, lưu trữ và quota

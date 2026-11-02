@@ -61,6 +61,7 @@ export default function PdfExtractModal({ open, initialFile, scope, onClose }) {
     const [reading, setReading] = useState(false);
     const [pageCount, setPageCount] = useState(0);
     const [pages, setPages] = useState('');
+    const [rotations, setRotations] = useState({});
     const [limit, setLimit] = useState(5000);
     const [gridPage, setGridPage] = useState(1);
     const [name, setName] = useState('');
@@ -98,7 +99,7 @@ export default function PdfExtractModal({ open, initialFile, scope, onClose }) {
     useEffect(() => {
         if (!open) return;
         const controller = new AbortController();
-        setPageCount(0); setPages(''); setGridPage(1); setError('');
+        setPageCount(0); setPages(''); setRotations({}); setGridPage(1); setError('');
         if ((mode === 'local' && !localFile) || (mode === 'stored' && !sourceId)) {
             setReading(false);
             return () => controller.abort();
@@ -138,6 +139,9 @@ export default function PdfExtractModal({ open, initialFile, scope, onClose }) {
         setSaving(true); setError(''); setProgress(null);
         const body = new FormData();
         body.append('name', name.trim()); body.append('pages', pages);
+        body.append('rotations', JSON.stringify(Object.fromEntries(
+            selected.pages.filter(page => rotations[page]).map(page => [page, rotations[page]])
+        )));
         if (mode === 'local') {
             body.append('file', localFile);
             if (scope === 'shared') body.append('ttl_minutes', ttl);
@@ -203,7 +207,10 @@ export default function PdfExtractModal({ open, initialFile, scope, onClose }) {
                     <Suspense fallback={<div className="workspace-pdf-extract-loading"><Spin size="small" /><span>Đang tải ảnh xem trước…</span></div>}>
                         <PdfPageGrid key={`${scope}-${mode}-${sourceId}-${localFile?.uid}`}
                             source={mode === 'local' ? localFile : `/pdf/${scope}/${sourceId}/preview`}
-                            pages={visiblePages} selected={selectedSet} disabled={saving} onToggle={togglePage} />
+                            pages={visiblePages} selected={selectedSet} disabled={saving} onToggle={togglePage}
+                            rotations={rotations} onRotate={(page, delta) => setRotations(previous => ({
+                                ...previous, [page]: delta === 0 ? 0 : ((previous[page] || 0) + delta + 360) % 360,
+                            }))} />
                     </Suspense>
                     {pageCount > 60 && <Pagination size="small" current={gridPage} pageSize={60} total={pageCount} showSizeChanger={false} onChange={setGridPage}
                         showTotal={(_, range) => `Trang ${range[0]}–${range[1]}`} />}

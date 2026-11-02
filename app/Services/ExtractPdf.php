@@ -74,7 +74,7 @@ class ExtractPdf
                 if ($temporary === false) {
                     throw new RuntimeException('Cannot create temporary PDF.');
                 }
-                $this->extractor->extract($sourcePath, $input['pages'], $temporary);
+                $this->extractor->extract($sourcePath, $input['pages'], $temporary, $input['rotations'] ?? []);
                 $size = filesize($temporary);
                 if ($size > config('upload_limits.max_file_size')) {
                     throw ValidationException::withMessages(['file' => 'PDF mới không được vượt quá 100 MB.']);

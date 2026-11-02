@@ -59,10 +59,30 @@ class PdfExtractor
         return array_keys($selected);
     }
 
-    public function extract(string $input, string $expression, string $output): void
+    public function extract(string $input, string $expression, string $output, array $rotations = []): void
     {
-        $pages = $this->selectedPages($expression, $this->pageCount($input));
-        $this->run([$this->binary(), '--warning-exit-0', '--empty', '--pages', $input, implode(',', $pages), '--', $output]);
+        $count = $this->pageCount($input);
+        $pages = $this->selectedPages($expression, $count);
+        foreach ($rotations as $page => $angle) {
+            if (! preg_match('/^[1-9][0-9]*$/D', (string) $page) || (int) $page > $count
+                || ! in_array($angle, [0, 90, 180, 270, '0', '90', '180', '270'], true)) {
+                throw ValidationException::withMessages(['rotations' => 'Trang hoặc góc xoay không hợp lệ.']);
+            }
+        }
+        $arguments = [$this->binary(), '--warning-exit-0', '--empty', '--pages', $input, implode(',', $pages), '--'];
+        $groups = [];
+        foreach ($pages as $index => $page) {
+            $angle = (int) ($rotations[$page] ?? 0);
+            if ($angle !== 0) {
+                // qpdf applies rotations after extraction: use output positions, not source numbers.
+                $groups[$angle][] = $index + 1;
+            }
+        }
+        foreach ($groups as $angle => $positions) {
+            $arguments[] = '--rotate=+'.$angle.':'.implode(',', $positions);
+        }
+        $arguments[] = $output;
+        $this->run($arguments);
         if (! is_file($output) || filesize($output) === 0) {
             throw ValidationException::withMessages(['file' => 'Không tạo được PDF mới.']);
         }
