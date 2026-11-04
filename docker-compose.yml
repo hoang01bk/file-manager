@@ -15,6 +15,19 @@ services:
     networks:
       - app-network
 
+  # Websocket server; accessed through the same nginx/domain as the site.
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    volumes:
+      - .:/var/www
+    networks:
+      - app-network
+
   # 2. Web Server (Nginx)
   webserver:
     image: nginx:alpine

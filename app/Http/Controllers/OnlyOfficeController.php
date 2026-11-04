@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OfficeFileSaved;
 use App\Models\Upload;
 use App\Models\UserUpload;
+use App\Services\OfficeActivity;
 use App\Services\OnlyOfficeToken;
 use App\Services\UploadQuota;
 use Illuminate\Http\Request;
@@ -78,6 +80,11 @@ class OnlyOfficeController extends Controller
             'editing' => $editing,
             'editUrl' => $canEdit && ! $editing ? route('office.show', ['scope' => $scope, 'id' => $id, 'edit' => 1], absolute: false) : null,
             'expiresAt' => $expires->toIso8601String(),
+            'activityConfig' => [
+                'scope' => $scope, 'fileId' => $id,
+                'cursor' => (int) app(OfficeActivity::class)->query($scope, $id)->max('id'),
+                'key' => config('broadcasting.connections.reverb.key'),
+            ],
         ]);
     }
 
@@ -97,7 +104,7 @@ class OnlyOfficeController extends Controller
         return response()->file(Storage::disk($this->disk($file))->path($file->file_path), ['Cache-Control' => 'no-store'])->setPrivate();
     }
 
-    public function callback(Request $request, string $scope, int $id, OnlyOfficeToken $tokens, UploadQuota $quota)
+    public function callback(Request $request, string $scope, int $id, OnlyOfficeToken $tokens, UploadQuota $quota, OfficeActivity $activities)
     {
         // Use only signed JWT claims, never the unauthenticated request fields.
         $claims = $tokens->decode((string) ($request->input('token') ?: $request->bearerToken()));
@@ -141,7 +148,7 @@ class OnlyOfficeController extends Controller
                 throw new RuntimeException('Invalid document size.');
             }
 
-            DB::transaction(function () use ($request, $scope, $id, $data, $temporary, $quota, $file) {
+            $activity = DB::transaction(function () use ($request, $scope, $id, $data, $temporary, $quota, $file, $activities) {
                 $quota->lock($file->user_id);
                 $file = $this->file($scope, $id, true);
                 $this->assertAvailable($file);
@@ -150,6 +157,13 @@ class OnlyOfficeController extends Controller
                     return;
                 }
                 $quota->assertFits($file->user_id, filesize($temporary), (int) ($file->file_size ?? 0));
+                $path = Storage::disk($this->disk($file))->path($file->file_path);
+                $hash = hash_file('sha256', $temporary);
+                if ($activities->query($scope, $id)->where('event_key', $activities->eventKey($data, $hash))->exists()) {
+                    return;
+                }
+                $activity = hash_file('sha256', $path) !== $hash
+                    ? $activities->record($scope, $id, $data, $hash, filesize($temporary)) : null;
                 // Filesystem::replace writes to a sibling temporary file and renames atomically.
                 app('files')->replace(Storage::disk($this->disk($file))->path($file->file_path), file_get_contents($temporary));
                 $file->file_size = filesize($temporary);
@@ -157,7 +171,18 @@ class OnlyOfficeController extends Controller
                     $file->office_key = (string) Str::uuid();
                 }
                 $file->save();
+
+                return $activity;
             });
+
+            // Broadcasting happens after commit. A websocket outage must not turn a successful save into a failed save.
+            if ($activity) {
+                try {
+                    event(new OfficeFileSaved($scope, $id, $activity->id));
+                } catch (Throwable) {
+                    logger()->warning('Office notification delivery failed; activity remains available.', ['activity_id' => $activity->id]);
+                }
+            }
 
             return response()->json(['error' => 0]);
         } catch (Throwable $exception) {
