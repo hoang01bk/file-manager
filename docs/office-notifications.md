@@ -21,6 +21,8 @@ Nhật ký metadata không tính vào quota file, không lưu URL tải hoặc t
 
 ## Triển khai Docker
 
+Nếu dùng cấu hình deploy từ image, làm theo [production-deploy.md](production-deploy.md); các lệnh clear cache/copy volume bên dưới áp dụng cho cấu hình bind-mount development trước đây.
+
 Cần commit toàn bộ migration, model, event, service, controller, config, frontend, hai lockfile, compose và Nginx cùng nhau. Composer thêm `laravel/reverb`; npm thêm `pusher-js`.
 
 ```powershell
