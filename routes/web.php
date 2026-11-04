@@ -12,6 +12,7 @@ use App\Http\Controllers\OnlyOfficeController;
 use App\Http\Controllers\FileEditorController;
 use App\Http\Controllers\PdfMergeController;
 use App\Http\Controllers\PdfExtractController;
+use App\Http\Controllers\OfficeActivityController;
 
 
 // Route::get('/', function () {
@@ -88,6 +89,10 @@ Route::patch('/office/{scope}/{id}/permissions', [FileEditorController::class, '
 
 Route::get('/office/{scope}/{id}', [OnlyOfficeController::class, 'show'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.show');
+Route::get('/office/{scope}/{id}/activities', [OfficeActivityController::class, 'index'])
+    ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->middleware('throttle:120,1')->name('office.activities');
+Route::post('/office/broadcast/auth', [OfficeActivityController::class, 'authorizeChannel'])
+    ->middleware('throttle:60,1')->name('office.broadcast.auth');
 // ONLYOFFICE accesses these URLs without a browser session. Both require a signed URL;
 // the callback additionally validates the server's JWT and the authorized editor.
 Route::get('/office/{scope}/{id}/content', [OnlyOfficeController::class, 'content'])

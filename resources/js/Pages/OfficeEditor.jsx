@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { Alert, Button, Space, Spin, Typography } from 'antd';
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
+import OfficeActivityPanel from '@/Components/OfficeActivityPanel';
 
-export default function OfficeEditor({ fileName, editorConfig, scriptUrl, backUrl, editing, editUrl, expiresAt }) {
+export default function OfficeEditor({ fileName, editorConfig, scriptUrl, backUrl, editing, editUrl, expiresAt, activityConfig }) {
     const editor = useRef(null);
     const [error, setError] = useState('');
     const [ready, setReady] = useState(false);
@@ -78,6 +79,7 @@ export default function OfficeEditor({ fileName, editorConfig, scriptUrl, backUr
                     <Typography.Text type="secondary">{editing ? 'Chỉnh sửa' : 'Chỉ xem'}</Typography.Text>
                     {editUrl && !expired && <Button type="primary" href={editUrl} icon={<EditOutlined />}>Chỉnh sửa</Button>}
                 </Space>
+                {activityConfig && <OfficeActivityPanel config={activityConfig} fileName={fileName} expiresAt={expiresAt} expired={expired} />}
                 <Typography.Text type="secondary">
                     {editing ? 'Nhấn Ctrl+S để lưu. ' : ''}Phiên kết thúc: {new Date(expiresAt).toLocaleString('vi-VN')}
                 </Typography.Text>
