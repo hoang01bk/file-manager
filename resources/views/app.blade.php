@@ -8,10 +8,6 @@
         <link rel="icon" href="/favicon.ico?v=1" sizes="16x16 32x32 48x48">
         <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
         <!-- Scripts -->
         @routes
         @viteReactRefresh

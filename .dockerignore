@@ -1,1 +1,14 @@
+.git
+node_modules
+vendor
+.env
+.env.*
+!.env.example
+auth.json
+storage
+bootstrap/cache/*
+public/build
+public/hot
 public/storage
+docker/downloads/letsencrypt
+*.log

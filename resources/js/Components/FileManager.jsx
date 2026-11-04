@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button, Checkbox, Drawer, Dropdown, Image, Input, Modal, Pagination, Select, Table, Tooltip, Upload, message } from 'antd';
 import {
@@ -10,10 +10,11 @@ import {
 import FileWorkspace from '@/Layouts/FileWorkspace';
 import OfficeFileActions, { isOfficeFile, officeUrl } from './OfficeFileActions';
 import FileEditorSelect, { editorSelectionPayload } from './FileEditorSelect';
-import FilePermissionsModal from './FilePermissionsModal';
-import PdfMergeModal from './PdfMergeModal';
-import PdfExtractModal from './PdfExtractModal';
 import StorageQuota, { formatStorageSize } from './StorageQuota';
+
+const FilePermissionsModal = lazy(() => import('./FilePermissionsModal'));
+const PdfMergeModal = lazy(() => import('./PdfMergeModal'));
+const PdfExtractModal = lazy(() => import('./PdfExtractModal'));
 
 const ttlOptions = [
     { value: 1, label: '1 phút' }, { value: 5, label: '5 phút' }, { value: 10, label: '10 phút' },
@@ -224,9 +225,13 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 <div className="workspace-upload-note"><InfoCircleOutlined /><span>{personal ? 'File cá nhân được lưu cho đến khi bạn chủ động xóa.' : 'File sẽ bị xóa vĩnh viễn khi hết thời gian lưu đã chọn.'}</span></div>
                 <div className="workspace-upload-quota"><StorageQuota quota={storageQuota} /></div>
             </Drawer>
-            <FilePermissionsModal file={permissionsFile} scope={scope} onClose={() => setPermissionsFile(null)} />
-            <PdfMergeModal file={mergeFile} scope={scope} onClose={() => setMergeFile(null)} />
-            <PdfExtractModal open={extractOpen} initialFile={extractFile} scope={scope} onClose={() => setExtractOpen(false)} />
+            <Suspense fallback={<Modal open title="Đang tải chức năng…" footer={null} onCancel={() => {
+                setPermissionsFile(null); setMergeFile(null); setExtractOpen(false);
+            }}><p role="status">Vui lòng chờ trong giây lát.</p></Modal>}>
+                {permissionsFile && <FilePermissionsModal file={permissionsFile} scope={scope} onClose={() => setPermissionsFile(null)} />}
+                {mergeFile && <PdfMergeModal file={mergeFile} scope={scope} onClose={() => setMergeFile(null)} />}
+                {extractOpen && <PdfExtractModal open initialFile={extractFile} scope={scope} onClose={() => setExtractOpen(false)} />}
+            </Suspense>
             <Preview file={previewFile} personal={personal} onClose={() => setPreviewFile(null)} />
         </FileWorkspace>
     );

@@ -1,0 +1,169 @@
+# Standalone production stack: docker compose -f docker-compose.prod.yml up -d --build
+# Keep the existing Compose project name to reuse DB/ONLYOFFICE volumes.
+services:
+  app:
+    image: file-manager-app-production:${APP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    container_name: file-manager-app
+    restart: unless-stopped
+    working_dir: /var/www
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LARAVEL_OPTIMIZE: "1"
+    volumes:
+      - ./storage/app:/var/www/storage/app
+      - ./storage/logs:/var/www/storage/logs
+      - ./storage/framework/sessions:/var/www/storage/framework/sessions
+      - app_framework:/var/www/storage/framework
+      - ./docker/production/php.ini:/usr/local/etc/php/conf.d/zz-production.ini:ro
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 6
+    networks: [app-network]
+
+  reverb:
+    image: file-manager-app-production:${APP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    working_dir: /var/www
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LARAVEL_OPTIMIZE: "1"
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    volumes:
+      - ./storage/app:/var/www/storage/app
+      - ./storage/logs:/var/www/storage/logs
+      - ./docker/production/php.ini:/usr/local/etc/php/conf.d/zz-production.ini:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [app-network]
+
+  webserver:
+    image: file-manager-web-production:${APP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    container_name: file-manager-nginx
+    restart: unless-stopped
+    ports:
+      - "8111:80"
+    volumes:
+      - ./storage/app/public:/var/www/storage/app/public:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [app-network]
+
+  db:
+    image: postgres:16-alpine
+    container_name: file-manager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: file_manager
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks: [app-network]
+
+  onlyoffice:
+    image: onlyoffice/documentserver:9.3
+    container_name: file-manager-onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Set ONLYOFFICE_JWT_SECRET in .env}
+      JWT_IN_BODY: "true"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_lib:/var/lib/onlyoffice
+      - onlyoffice_logs:/var/log/onlyoffice
+    shm_size: '256mb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [app-network]
+
+  # Optional background services: add --profile background when deploying.
+  worker:
+    image: file-manager-app-production:${APP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    working_dir: /var/www
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LARAVEL_OPTIMIZE: "1"
+    volumes:
+      - ./storage/app:/var/www/storage/app
+      - ./storage/logs:/var/www/storage/logs
+      - ./storage/framework/sessions:/var/www/storage/framework/sessions
+      - ./docker/production/php.ini:/usr/local/etc/php/conf.d/zz-production.ini:ro
+    profiles: [background]
+    command: php artisan queue:work --tries=3 --timeout=90
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [app-network]
+
+  scheduler:
+    image: file-manager-app-production:${APP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    working_dir: /var/www
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LARAVEL_OPTIMIZE: "1"
+    volumes:
+      - ./storage/app:/var/www/storage/app
+      - ./storage/logs:/var/www/storage/logs
+      - ./storage/framework/sessions:/var/www/storage/framework/sessions
+      - ./docker/production/php.ini:/usr/local/etc/php/conf.d/zz-production.ini:ro
+    profiles: [background]
+    command: php artisan schedule:work
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [app-network]
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  app_framework:
+  onlyoffice_data:
+  onlyoffice_lib:
+  onlyoffice_logs:
