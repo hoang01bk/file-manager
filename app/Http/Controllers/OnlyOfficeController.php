@@ -20,6 +20,24 @@ use Throwable;
 
 class OnlyOfficeController extends Controller
 {
+    public function loginToEdit(Request $request, int $id)
+    {
+        $file = $this->file('shared', $id);
+        $this->assertAvailable($file);
+        abort_unless(in_array(strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION)), ['docx', 'xlsx'], true), 415);
+        if (! $request->user()) {
+            // Remember this fixed local endpoint, not a user-provided redirect URL.
+            $request->session()->put('url.intended', route('office.login', ['id' => $id], absolute: false));
+
+            return redirect()->route('login');
+        }
+
+        return redirect()->route('office.show', [
+            'scope' => 'shared', 'id' => $id,
+            ...($file->canEditOffice($request->user()->id) ? ['edit' => 1] : []),
+        ]);
+    }
+
     public function show(Request $request, string $scope, int $id, OnlyOfficeToken $tokens)
     {
         $file = $this->file($scope, $id);
@@ -79,6 +97,8 @@ class OnlyOfficeController extends Controller
             'backUrl' => $scope === 'personal' && $request->user() ? '/my-files' : '/',
             'editing' => $editing,
             'editUrl' => $canEdit && ! $editing ? route('office.show', ['scope' => $scope, 'id' => $id, 'edit' => 1], absolute: false) : null,
+            'loginEditUrl' => $scope === 'shared' && ! $request->user() && $file->allowsAnyAccountToEdit()
+                ? route('office.login', ['id' => $id], absolute: false) : null,
             'expiresAt' => $expires->toIso8601String(),
             'activityConfig' => [
                 'scope' => $scope, 'fileId' => $id,

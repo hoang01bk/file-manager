@@ -89,6 +89,8 @@ Route::patch('/office/{scope}/{id}/permissions', [FileEditorController::class, '
 
 Route::get('/office/{scope}/{id}', [OnlyOfficeController::class, 'show'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.show');
+Route::get('/office/shared/{id}/login', [OnlyOfficeController::class, 'loginToEdit'])
+    ->whereNumber('id')->name('office.login');
 Route::get('/office/{scope}/{id}/activities', [OfficeActivityController::class, 'index'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->middleware('throttle:120,1')->name('office.activities');
 Route::post('/office/broadcast/auth', [OfficeActivityController::class, 'authorizeChannel'])

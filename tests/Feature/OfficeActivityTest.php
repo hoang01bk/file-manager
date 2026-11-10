@@ -118,7 +118,7 @@ class OfficeActivityTest extends TestCase
 
     public function test_history_catchup_is_ordered_scoped_and_does_not_expose_tokens_or_actor_ids(): void
     {
-        $file = $this->file();
+        $file = $this->file($this->user());
         $other = $this->file();
         $this->download('changed');
         [$url, $body] = $this->saveCallback($file);

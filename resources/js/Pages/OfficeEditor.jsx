@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { Alert, Button, Space, Spin, Typography } from 'antd';
-import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, EditOutlined, LoginOutlined } from '@ant-design/icons';
 import OfficeActivityPanel from '@/Components/OfficeActivityPanel';
 
-export default function OfficeEditor({ fileName, editorConfig, scriptUrl, backUrl, editing, editUrl, expiresAt, activityConfig }) {
+export default function OfficeEditor({ fileName, editorConfig, scriptUrl, backUrl, editing, editUrl, loginEditUrl, expiresAt, activityConfig }) {
     const editor = useRef(null);
     const [error, setError] = useState('');
     const [ready, setReady] = useState(false);
@@ -78,6 +78,7 @@ export default function OfficeEditor({ fileName, editorConfig, scriptUrl, backUr
                     <Typography.Text strong>{fileName}</Typography.Text>
                     <Typography.Text type="secondary">{editing ? 'Chỉnh sửa' : 'Chỉ xem'}</Typography.Text>
                     {editUrl && !expired && <Button type="primary" href={editUrl} icon={<EditOutlined />}>Chỉnh sửa</Button>}
+                    {loginEditUrl && !expired && <Button type="primary" href={loginEditUrl} icon={<LoginOutlined />}>Đăng nhập để chỉnh sửa</Button>}
                 </Space>
                 {activityConfig && <OfficeActivityPanel config={activityConfig} fileName={fileName} expiresAt={expiresAt} expired={expired} />}
                 <Typography.Text type="secondary">

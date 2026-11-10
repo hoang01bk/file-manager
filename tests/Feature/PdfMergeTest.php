@@ -75,15 +75,17 @@ class PdfMergeTest extends TestCase
         $this->assertSame([100, 200], $this->widths(Storage::disk('public')->path($copy->file_path)));
     }
 
-    public function test_guest_can_merge_an_anonymous_shared_pdf_and_all_users_flag_is_preserved(): void
+    public function test_shared_pdf_requires_login_and_all_users_flag_is_preserved(): void
     {
         $source = $this->source();
+        $this->postJson('/pdf/shared/'.$source->id.'/merge', ['name' => 'Denied', 'pdfs' => [$this->addition()]])->assertForbidden();
+        $this->actingAs($this->user());
         $response = $this->postJson('/pdf/shared/'.$source->id.'/merge', [
             'name' => 'Guest.pdf', 'pdfs' => [$this->addition()],
         ])->assertCreated();
         $copy = Upload::findOrFail($response->json('id'));
-        $this->assertNull($copy->user_id);
-        $this->assertTrue($copy->canEditOffice(null));
+        $this->assertSame(auth()->id(), $copy->user_id);
+        $this->assertFalse($copy->canEditOffice(null));
 
         $owner = $this->user();
         $personal = $this->source($owner, personal: true);
@@ -112,6 +114,7 @@ class PdfMergeTest extends TestCase
 
     public function test_expired_missing_and_non_pdf_sources_are_rejected(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         $source->update(['expired_at' => now()->subMinute()]);
         $this->postJson('/pdf/shared/'.$source->id.'/merge', ['name' => 'New', 'pdfs' => [$this->addition()]])->assertGone();
@@ -125,6 +128,7 @@ class PdfMergeTest extends TestCase
 
     public function test_invalid_inputs_and_broken_pdf_do_not_change_the_original(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         foreach ([
             ['name' => '../unsafe.pdf', 'pdfs' => [$this->addition()]],
@@ -143,6 +147,7 @@ class PdfMergeTest extends TestCase
 
     public function test_encrypted_pdf_is_rejected_without_creating_a_copy(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         $input = Storage::disk('public')->path($source->file_path);
         $encrypted = $input.'.encrypted';
@@ -162,8 +167,9 @@ class PdfMergeTest extends TestCase
 
     public function test_quota_and_output_size_limits_reject_the_copy_without_leaving_files(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
-        config(['upload_limits.guest_quota' => strlen(PdfFixture::page())]);
+        config(['upload_limits.user_quota' => strlen(PdfFixture::page())]);
         $this->postJson('/pdf/shared/'.$source->id.'/merge', [
             'name' => 'Quota', 'pdfs' => [$this->addition()],
         ])->assertUnprocessable()->assertJsonValidationErrors('file');
@@ -172,7 +178,7 @@ class PdfMergeTest extends TestCase
         $largeSource = PdfFixture::page(100, implode("\n", array_map(fn ($index) => '%'.hash('sha256', (string) $index), range(1, 100))));
         Storage::disk('public')->put($source->file_path, $largeSource);
         $source->update(['file_size' => strlen($largeSource)]);
-        config(['upload_limits.guest_quota' => 1024 * 1024, 'upload_limits.max_file_size' => 1024]);
+        config(['upload_limits.user_quota' => 1024 * 1024, 'upload_limits.max_file_size' => 1024]);
         $this->postJson('/pdf/shared/'.$source->id.'/merge', [
             'name' => 'Too large', 'pdfs' => [$this->addition(200), $this->addition(300)],
         ])->assertUnprocessable()->assertJsonPath('errors.pdfs.0', 'PDF sau khi ghép không được vượt quá 100 MB.');
@@ -185,6 +191,7 @@ class PdfMergeTest extends TestCase
 
     public function test_database_failure_removes_the_new_file_and_keeps_original(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         $merger = app(MergeUploadedPdf::class);
         // Fail after the generated file and new database row have been written.
@@ -192,7 +199,7 @@ class PdfMergeTest extends TestCase
             throw new \RuntimeException('Simulated database failure.');
         });
         try {
-            $merger->create('shared', $source->id, null, 'Failure', [$this->addition()]);
+            $merger->create('shared', $source->id, auth()->id(), 'Failure', [$this->addition()]);
             $this->fail('Expected the database failure.');
         } catch (\RuntimeException $exception) {
             $this->assertSame('Simulated database failure.', $exception->getMessage());
@@ -206,6 +213,7 @@ class PdfMergeTest extends TestCase
 
     public function test_missing_pdf_tool_returns_a_service_error_without_creating_a_copy(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         config(['pdf_merge.binary' => 'missing-qpdf-tool-for-test']);
         $this->postJson('/pdf/shared/'.$source->id.'/merge', ['name' => 'New', 'pdfs' => [$this->addition()]])->assertStatus(503);
