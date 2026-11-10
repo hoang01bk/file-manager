@@ -56,16 +56,17 @@ class PdfExtractTest extends TestCase
         $this->get($url)->assertNotFound();
     }
 
-    public function test_preview_supports_guest_shared_files_and_checks_personal_scope(): void
+    public function test_preview_requires_login_for_shared_files_and_checks_personal_scope(): void
     {
         $shared = $this->source();
-        $this->get('/pdf/shared/'.$shared->id.'/preview')->assertOk();
+        $this->get('/pdf/shared/'.$shared->id.'/preview')->assertForbidden();
         $owner = $this->user();
         $personal = $this->source($owner, personal: true);
         $url = '/pdf/personal/'.$personal->id.'/preview';
         $this->get($url)->assertForbidden();
         $this->actingAs($this->user())->get($url)->assertForbidden();
         $this->actingAs($owner)->get($url)->assertOk();
+        $this->get('/pdf/shared/'.$shared->id.'/preview')->assertOk();
         config(['upload_limits.max_file_size' => 1]);
         $this->get($url)->assertStatus(413);
     }
@@ -187,6 +188,7 @@ class PdfExtractTest extends TestCase
 
     public function test_expired_missing_and_non_pdf_sources_are_rejected(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         $source->update(['expired_at' => now()->subMinute()]);
         $this->getJson('/pdf/shared/'.$source->id.'/info')->assertGone();
@@ -200,6 +202,7 @@ class PdfExtractTest extends TestCase
 
     public function test_invalid_page_selections_are_rejected_without_creating_files(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         foreach (['0', '5', '1-9', '-1', '1,,2', '--replace-input', '1 2', '99999999999999999999999', '1;touch /tmp/bad'] as $pages) {
             $this->postJson('/pdf/shared/extract', ['source_id' => $source->id, 'name' => 'Invalid', 'pages' => $pages])
@@ -250,8 +253,9 @@ class PdfExtractTest extends TestCase
 
     public function test_quota_failure_keeps_original_and_does_not_leave_a_new_file(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
-        config(['upload_limits.guest_quota' => 0]);
+        config(['upload_limits.user_quota' => 0]);
         $this->postJson('/pdf/shared/extract', ['source_id' => $source->id, 'name' => 'Quota', 'pages' => '1'])
             ->assertUnprocessable()->assertJsonValidationErrors('file');
         $this->assertSame([$source->file_path], Storage::disk('public')->allFiles());
@@ -261,12 +265,13 @@ class PdfExtractTest extends TestCase
 
     public function test_database_failure_removes_output_and_keeps_original(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         Upload::created(function () {
             throw new \RuntimeException('Simulated write failure.');
         });
         try {
-            app(ExtractPdf::class)->create('shared', null, ['source_id' => $source->id, 'name' => 'Failure', 'pages' => '2']);
+            app(ExtractPdf::class)->create('shared', auth()->id(), ['source_id' => $source->id, 'name' => 'Failure', 'pages' => '2']);
             $this->fail('Expected write failure.');
         } catch (\RuntimeException $exception) {
             $this->assertSame('Simulated write failure.', $exception->getMessage());
@@ -279,6 +284,7 @@ class PdfExtractTest extends TestCase
 
     public function test_missing_tool_and_excessive_file_size_are_reported(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         config(['upload_limits.max_file_size' => 1]);
         $this->getJson('/pdf/shared/'.$source->id.'/info')->assertStatus(413);
@@ -323,6 +329,7 @@ class PdfExtractTest extends TestCase
 
     public function test_invalid_rotation_angles_and_page_keys_are_rejected(): void
     {
+        $this->actingAs($this->user());
         $source = $this->source();
         foreach ([[1 => 45], [1 => -90], [1 => 360], [1 => 'bad'], [1 => [90]], [0 => 90], [5 => 90], ['bad' => 90], ['01' => 90], '{broken', '90', 'null'] as $rotations) {
             $this->postJson('/pdf/shared/extract', [
@@ -335,6 +342,18 @@ class PdfExtractTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('rotations');
         $this->assertDatabaseCount('uploads', 1);
         $this->assertSame([$source->file_path], Storage::disk('public')->allFiles());
+    }
+
+    public function test_guests_cannot_select_or_extract_uploaded_shared_pdfs_even_with_all_users_permission(): void
+    {
+        $source = $this->source();
+        foreach ([false, true] as $allUsers) {
+            $source->update(['all_users_can_edit' => $allUsers]);
+            $this->getJson('/pdf/shared/sources')->assertOk()->assertJsonCount(0, 'files');
+            $this->getJson('/pdf/shared/'.$source->id.'/info')->assertForbidden();
+            $this->postJson('/pdf/shared/extract', ['source_id' => $source->id, 'name' => 'Denied', 'pages' => '1'])->assertForbidden();
+        }
+        $this->assertDatabaseCount('uploads', 1);
     }
 
     private function rotations(string $path): array

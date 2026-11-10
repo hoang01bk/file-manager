@@ -13,9 +13,9 @@ Các trang của PDF gốc đứng đầu, sau đó là toàn bộ trang của t
 
 ## Quyền và dung lượng
 
-- Người thao tác cần có quyền chỉnh sửa file gốc theo cơ chế quyền hiện tại: chủ sở hữu, người được cấp quyền, tất cả người dùng hoặc file chung ẩn danh được phép sửa.
+- Trong File Sharing, người thao tác cần đăng nhập và có quyền chỉnh sửa file gốc: chủ sở hữu, người được cấp quyền, tất cả tài khoản hoặc file chung ẩn danh được phép sửa. Khách chưa đăng nhập không thể ghép từ file đã upload.
 - Ghép trong File cá nhân yêu cầu đăng nhập.
-- Bản mới thuộc người tạo bản ghép, tính vào quota của người đó. Nếu tạo khi chưa đăng nhập ở File Share thì tính vào quota chung dành cho khách.
+- Bản mới thuộc người tạo bản ghép, tính vào quota của tài khoản đó.
 - Giữ `view_only`, `all_users_can_edit`, danh sách người được cấp quyền và thời điểm hết hạn theo file gốc. Nếu người tạo khác chủ file gốc thì chủ file gốc vẫn được cấp quyền trên bản mới.
 - File gốc vẫn chiếm dung lượng như trước; tạo bản mới không được trừ kích thước file gốc khi kiểm tra quota.
 - Tổng dung lượng các PDF tải thêm tối đa 100 MiB; PDF đầu ra cũng tối đa 100 MiB. Giao diện hiển thị giới hạn này là 100 MB, thống nhất với giới hạn upload hiện tại.

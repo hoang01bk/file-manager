@@ -9,7 +9,7 @@ export function editorSelectionPayload(values) {
     return { all_users_can_edit: allUsers, editor_ids: allUsers ? [] : values };
 }
 
-export default function FileEditorSelect({ value, onChange, disabled, initialUsers }) {
+export default function FileEditorSelect({ value, onChange, disabled, initialUsers, scope }) {
     const [search, setSearch] = useState('');
     const [options, setOptions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -78,7 +78,7 @@ export default function FileEditorSelect({ value, onChange, disabled, initialUse
             {error && <Typography.Text type="danger" style={{ display: 'block', marginTop: 6 }}>{error}</Typography.Text>}
             <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
                 {value.includes(ALL_USERS)
-                    ? 'Bất kỳ ai có đường dẫn đều có thể mở và chỉnh sửa tài liệu, kể cả khi chưa đăng nhập.'
+                    ? (scope === 'shared' ? 'Tất cả người dùng đã đăng nhập có thể chỉnh sửa tài liệu. Khách chưa đăng nhập chỉ được xem.' : 'Bất kỳ ai có đường dẫn đều có thể mở và chỉnh sửa tài liệu, kể cả khi chưa đăng nhập.')
                     : 'Bỏ trống: chỉ bạn được sửa. Chọn tất cả hoặc tìm người theo tên/mã nhân viên (ít nhất 2 ký tự).'}
             </Typography.Text>
         </div>

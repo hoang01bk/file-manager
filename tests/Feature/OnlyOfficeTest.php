@@ -79,15 +79,18 @@ class OnlyOfficeTest extends TestCase
         $this->actingAs($owner)->get("/office/shared/{$file->id}?edit=1")->assertOk();
     }
 
-    public function test_anonymous_upload_can_be_edited_without_login_or_uploader_session(): void
+    public function test_shared_anonymous_upload_requires_login_to_edit(): void
     {
         $file = $this->document();
-        $this->get("/office/shared/{$file->id}?edit=1")->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('editing', true)->where('editorConfig.document.permissions.edit', true)->etc());
+        $this->get("/office/shared/{$file->id}")->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('editing', false)->where('editUrl', null)->where('loginEditUrl', '/office/shared/'.$file->id.'/login')
+            ->where('editorConfig.document.permissions.edit', false)->etc());
+        $this->get("/office/shared/{$file->id}?edit=1")->assertForbidden();
+        $this->assertFalse($file->canEditOffice(null));
         $this->actingAs($this->createUser())->get("/office/shared/{$file->id}?edit=1")->assertOk();
     }
 
-    public function test_guest_can_edit_their_upload_and_sees_the_edit_action_when_viewing(): void
+    public function test_guest_upload_stays_viewable_but_cannot_be_edited_until_login(): void
     {
         $this->post('/upload', [
             'file' => UploadedFile::fake()->create('guest.docx', 1),
@@ -98,22 +101,22 @@ class OnlyOfficeTest extends TestCase
         $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('files.data.0.id', $file->id)->etc());
         $this->get("/office/shared/{$file->id}")->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('editing', false)->where('editUrl', "/office/shared/{$file->id}?edit=1")->etc());
-        $this->get("/office/shared/{$file->id}?edit=1")->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('editing', true)->where('editorConfig.document.permissions.edit', true)
-            ->where('editorConfig.editorConfig.user.id', fn ($id) => str_starts_with($id, 'guest-') && strlen($id) === 70)->etc());
+            ->where('editing', false)->where('editUrl', null)->etc());
+        $this->get("/office/shared/{$file->id}?edit=1")->assertForbidden();
         $this->assertGuest();
+        $this->actingAs($this->createUser())->get("/office/shared/{$file->id}?edit=1")->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('editing', true)->where('editorConfig.document.permissions.edit', true)
+            ->where('editorConfig.editorConfig.user.id', (string) auth()->id())->etc());
     }
 
-    public function test_anonymous_file_stays_editable_on_a_different_host_and_with_no_session_claims(): void
+    public function test_guest_cannot_edit_a_shared_file_on_any_host(): void
     {
         $file = $this->document();
         $registeredFile = $this->document($this->createUser());
         $this->get("http://localhost/office/shared/{$file->id}")->assertOk();
         $this->get("https://office-test.ngrok.app/office/shared/{$file->id}")->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('editUrl', "/office/shared/{$file->id}?edit=1")->etc());
-        $this->get("https://office-test.ngrok.app/office/shared/{$file->id}?edit=1")->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('editing', true)->where('editorConfig.document.permissions.edit', true)->etc());
+            ->where('editUrl', null)->etc());
+        $this->get("https://office-test.ngrok.app/office/shared/{$file->id}?edit=1")->assertForbidden();
         $this->get("/office/shared/{$registeredFile->id}?edit=1")->assertForbidden();
         $this->assertGuest();
     }
@@ -129,25 +132,18 @@ class OnlyOfficeTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_guest_can_save_using_the_issued_callback_without_browser_cookies(): void
+    public function test_legacy_guest_callbacks_cannot_save_shared_documents(): void
     {
-        $file = $this->document();
-        $callbackUrl = null;
-        $this->get("/office/shared/{$file->id}?edit=1")->assertOk()
-            ->assertInertia(function (Assert $page) use (&$callbackUrl) {
-                return $page->where('editorConfig.editorConfig.callbackUrl', function ($url) use (&$callbackUrl) {
-                    $callbackUrl = parse_url($url, PHP_URL_PATH).'?'.parse_url($url, PHP_URL_QUERY);
-
-                    return true;
-                })->etc();
-            });
-        $file->refresh();
-        $body = $this->callbackBody($file, 6);
-        $this->fakeDownload('guest force-saved document');
-        $this->postJson($callbackUrl, $body)->assertOk()->assertExactJson(['error' => 0]);
-        $this->assertSame('guest force-saved document', Storage::disk('public')->get($file->file_path));
-        $this->postJson($callbackUrl, $this->callbackBody($file, 2))->assertOk()->assertExactJson(['error' => 0]);
-        $this->assertNotSame($file->office_key, $file->fresh()->office_key);
+        foreach ([false, true] as $allUsers) {
+            $file = $this->document();
+            $file->update(['all_users_can_edit' => $allUsers]);
+            $url = $this->signedUrl($file, 'callback', editor: 'guest');
+            foreach ([2, 6] as $status) {
+                $this->postJson($url, $this->callbackBody($file, $status))->assertForbidden();
+            }
+            $this->assertSame('original document', Storage::disk('public')->get($file->file_path));
+        }
+        Http::assertNothingSent();
     }
 
     public function test_office_save_cannot_grow_a_file_past_its_owners_quota(): void
@@ -702,8 +698,10 @@ class OnlyOfficeTest extends TestCase
         $this->getJson("/office/shared/{$file->id}/permissions")->assertForbidden();
         $this->delete("/files/{$file->id}")->assertForbidden();
         auth()->logout();
-        $this->get("/office/shared/{$file->id}?edit=1")->assertOk();
-        $this->get("/files/{$file->id}/download")->assertOk();
+        $this->get("/office/shared/{$file->id}?edit=1")->assertForbidden();
+        $this->get("/office/shared/{$file->id}")->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('editUrl', null)->where('editorConfig.document.permissions.edit', false)->etc());
+        $this->get("/files/{$file->id}/download")->assertForbidden();
     }
 
     public function test_personal_files_shared_with_all_users_appear_for_new_accounts_and_allow_saving(): void
@@ -776,10 +774,10 @@ class OnlyOfficeTest extends TestCase
         $this->assertFalse($file->fresh()->all_users_can_edit);
     }
 
-    public function test_all_users_allows_guests_to_open_and_save_until_the_owner_revokes_access(): void
+    public function test_personal_all_users_guest_access_is_unchanged_and_can_be_revoked(): void
     {
         $owner = $this->createUser();
-        foreach (['shared', 'personal'] as $scope) {
+        foreach (['personal'] as $scope) {
             $file = $this->document($owner, personal: $scope === 'personal');
             $file->update(['all_users_can_edit' => true]);
             $contentUrl = null;
@@ -812,6 +810,62 @@ class OnlyOfficeTest extends TestCase
             $this->postJson($callbackUrl, $body)->assertForbidden();
             if ($scope === 'personal') {
                 $this->get($contentUrl)->assertForbidden();
+            }
+        }
+    }
+
+    public function test_login_to_edit_returns_to_the_same_file_after_successful_login(): void
+    {
+        $file = $this->document();
+        $user = $this->createUser();
+        $user->forceFill(['password' => 'office-login-test'])->save();
+        $returnPath = '/office/shared/'.$file->id.'/login';
+        $this->get($returnPath)->assertRedirect(route('login'))->assertSessionHas('url.intended', $returnPath);
+        $this->post('/login', ['employee_code' => $user->employee_code, 'password' => 'office-login-test'])
+            ->assertRedirect($returnPath);
+        $this->assertAuthenticatedAs($user);
+        $this->get($returnPath)->assertRedirect(route('office.show', ['scope' => 'shared', 'id' => $file->id, 'edit' => 1]));
+    }
+
+    public function test_login_to_edit_keeps_a_user_without_permission_in_view_mode(): void
+    {
+        $file = $this->document($this->createUser());
+        $this->actingAs($this->createUser())->get('/office/shared/'.$file->id.'/login')
+            ->assertRedirect(route('office.show', ['scope' => 'shared', 'id' => $file->id]));
+        $this->get('/office/shared/'.$file->id)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('editing', false)->where('editUrl', null)->where('loginEditUrl', null)->etc());
+    }
+
+    public function test_login_to_edit_ignores_external_redirects_and_rejects_unavailable_files(): void
+    {
+        $file = $this->document();
+        $path = '/office/shared/'.$file->id.'/login';
+        $this->get($path.'?redirect=https://example.com/')->assertRedirect(route('login'))
+            ->assertSessionHas('url.intended', $path);
+        $file->update(['expired_at' => now()->subMinute()]);
+        $this->get($path)->assertGone();
+        $file->update(['expired_at' => now()->addHour(), 'file_name' => 'test.pdf']);
+        $this->get($path)->assertStatus(415);
+        $file->delete();
+        $this->get($path)->assertNotFound();
+    }
+
+    public function test_guest_login_prompt_only_appears_for_shared_files_editable_by_any_account(): void
+    {
+        $owner = $this->createUser();
+        $selected = $this->createUser();
+        foreach ([false, true] as $anonymous) {
+            foreach ([false, true] as $viewOnly) {
+                foreach ([false, true] as $allUsers) {
+                    $file = $this->document($anonymous ? null : $owner, viewOnly: $viewOnly);
+                    $file->update(['all_users_can_edit' => $allUsers]);
+                    $file->editors()->attach($selected);
+                    $expected = $allUsers || ($anonymous && ! $viewOnly)
+                        ? '/office/shared/'.$file->id.'/login' : null;
+                    $this->get('/office/shared/'.$file->id)->assertOk()->assertInertia(fn (Assert $page) => $page
+                        ->where('loginEditUrl', $expected)->where('editUrl', null)
+                        ->where('editorConfig.document.permissions.edit', false)->etc());
+                }
             }
         }
     }

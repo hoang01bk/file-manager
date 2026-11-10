@@ -24,7 +24,7 @@ Không chọn trang nào, chọn trang 0, vượt số trang của PDF hoặc nh
 ## Quyền, lưu trữ và quota
 
 - PDF gốc luôn được giữ nguyên; kết quả có bản ghi và đường dẫn lưu trữ mới.
-- Với PDF đã upload, quyền thao tác giống ghép PDF: chủ sở hữu, người được cấp quyền hoặc quyền tất cả người dùng/khách theo cấu hình file hiện tại. File chỉ được xem nhưng không được sửa sẽ không xuất hiện trong bộ chọn.
+- Với PDF đã upload trong File Sharing, phải đăng nhập và có quyền chỉnh sửa file gốc. Khách không thể chọn/tách file đã upload, kể cả file ẩn danh hoặc bật tất cả người dùng. Khách vẫn có thể chọn PDF từ máy để tạo bản mới. File chỉ được xem nhưng không được sửa sẽ không xuất hiện trong bộ chọn.
 - Hệ thống kiểm tra lại quyền và hạn dùng khi tạo bản mới, không tin kết quả kiểm tra ở bước đọc số trang.
 - Bản kết quả thuộc người tạo, tính vào quota của người đó; khách ở File Share sử dụng pool quota dành cho khách. File gốc vẫn chiếm dung lượng như trước.
 - PDF đã upload: bản mới kế thừa quyền xem/tải, quyền tất cả người dùng, danh sách editor và thời điểm hết hạn. Chủ file gốc vẫn có quyền nếu người tạo bản mới là editor khác.

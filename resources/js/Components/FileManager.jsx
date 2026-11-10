@@ -123,12 +123,12 @@ export default function FileManager({ personal = false, files, posts, stats = {}
             render: (_, file) => <Countdown expiry={file.expired_at} />,
         }] : []),
         {
-            title: <span className="sr-only">Thao tác</span>, key: 'actions', width: 285,
+            title: <span className="sr-only">Thao tác</span>, key: 'actions', width: !personal && !user ? 355 : 285,
             render: (_, file) => {
                 const owner = user?.id != null && Number(user.id) === Number(file.user_id);
                 const available = !file.expired_at || new Date(file.expired_at) > new Date();
-                const canEdit = personal || owner || file.is_editor || file.all_users_can_edit || (file.user_id == null && !file.view_only);
-                const canDownload = personal || !file.view_only || owner || file.is_editor || file.all_users_can_edit;
+                const canEdit = Boolean(user) && (personal || owner || file.is_editor || file.all_users_can_edit || (file.user_id == null && !file.view_only));
+                const canDownload = personal || !file.view_only || canEdit;
                 const menu = [
                     ...(canEdit && available && /\.pdf$/i.test(file.file_name) ? [{ key: 'merge-pdf', icon: <FilePdfOutlined />, label: 'Ghép PDF', onClick: () => setMergeFile(file) }] : []),
                     ...(canEdit && available && /\.pdf$/i.test(file.file_name) ? [{ key: 'extract-pdf', icon: <ScissorOutlined />, label: 'Tách PDF', onClick: () => { setExtractFile(file); setExtractOpen(true); } }] : []),
@@ -138,7 +138,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 return (
                     <div className="workspace-file-actions">
                         <Button type="text" icon={<EyeOutlined />} onClick={() => isOfficeFile(file.file_name) ? window.open(officeUrl(scope, file.id), '_blank', 'noopener,noreferrer') : setPreviewFile(file)}>Xem</Button>
-                        <OfficeFileActions file={file} scope={scope} canEdit={canEdit && available} />
+                        <OfficeFileActions file={file} scope={scope} canEdit={canEdit && available} guest={!user && !personal && available} />
                         {canDownload && <Tooltip title="Tải về"><Button type="text" icon={<DownloadOutlined />} aria-label={`Tải ${file.file_name}`} onClick={() => { window.location.href = personal ? `/my-files/${file.id}/download` : `/files/${file.id}/download`; }} /></Tooltip>}
                         {menu.length > 0 && <Dropdown menu={{ items: menu }} trigger={['click']}><Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác với ${file.file_name}`} /></Dropdown>}
                     </div>
@@ -170,7 +170,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 <div className="workspace-table">
                     <Table
                         key={`${scope}-${filters.q || ''}`}
-                        columns={columns} dataSource={rows} rowKey="id" scroll={{ x: personal ? 790 : 925 }}
+                        columns={columns} dataSource={rows} rowKey="id" scroll={{ x: personal ? 790 : !user ? 995 : 925 }}
                         locale={{ emptyText: <EmptyFiles searching={Boolean(filters.q)} onUpload={() => setUploadOpen(true)} /> }}
                         pagination={personal ? { pageSize: 8, hideOnSinglePage: true, showSizeChanger: false } : {
                             current: files.current_page, pageSize: files.per_page, total: files.total,
@@ -218,7 +218,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 </Upload.Dragger>
                 <div className="workspace-upload-settings">
                     {!personal && <><label className="workspace-field-label" htmlFor="upload-ttl">Tự động xóa file sau</label><Select id="upload-ttl" value={ttl} onChange={setTtl} options={ttlOptions} disabled={uploading} style={{ width: '100%' }} /></>}
-                    {user && <FileEditorSelect value={editorIds} onChange={setEditorIds} disabled={uploading} />}
+                    {user && <FileEditorSelect value={editorIds} onChange={setEditorIds} disabled={uploading} scope={scope} />}
                     {!personal && user && <Checkbox checked={viewOnly} onChange={event => setViewOnly(event.target.checked)} disabled={uploading}>Chặn tải file đối với người không được cấp quyền</Checkbox>}
                 </div>
                 <Button type="primary" block icon={<UploadOutlined />} loading={uploading} disabled={!fileList.length} onClick={upload}>{uploading ? `Đang tải lên${uploadProgress == null ? '…' : ` ${uploadProgress}%`}` : 'Tải file lên'}</Button>

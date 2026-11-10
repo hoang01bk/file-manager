@@ -68,7 +68,7 @@ export default function FilePermissionsModal({ file, scope, onClose }) {
             {error && <Alert style={{ marginTop: 12 }} type="error" showIcon title={error} />}
             {!ready ? (!error && <div style={{ padding: 24, textAlign: 'center' }}><Spin /></div>) : (
                 <>
-                    <FileEditorSelect value={editorIds} onChange={setEditorIds} initialUsers={settings.editors} disabled={saving} />
+                    <FileEditorSelect value={editorIds} onChange={setEditorIds} initialUsers={settings.editors} disabled={saving} scope={scope} />
                     {scope === 'shared' ? (
                         <Checkbox checked={viewOnly} onChange={event => setViewOnly(event.target.checked)} disabled={saving}>
                             Chặn tải file đối với người không được cấp quyền

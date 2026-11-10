@@ -19,6 +19,9 @@ class ExtractPdf
     public function sources(string $scope, ?int $userId, string $search): array
     {
         $this->assertScope($scope, $userId);
+        if ($scope === 'shared' && $userId === null) {
+            return [];
+        }
         $query = $scope === 'personal' ? UserUpload::query() : Upload::query();
 
         return $query->whereLike('file_name', '%.pdf')
