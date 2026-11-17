@@ -6,6 +6,7 @@ use App\Http\Requests\StoreUploadRequest;
 use App\Models\Post;
 use App\Models\Upload;
 use App\Services\UploadQuota;
+use App\Services\FileFolders;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -18,17 +19,24 @@ use Throwable;
 
 class FileController extends Controller
 {
-    public function index(UploadQuota $quota)
+    public function index(UploadQuota $quota, FileFolders $folders)
     {
-        $query = request()->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $query = request()->validate([
+            'q' => ['nullable', 'string', 'max:200'],
+            'per_page' => ['sometimes', 'integer', 'in:20,50,100'],
+            'folder' => ['nullable', 'integer', 'min:1'],
+        ]);
         $search = trim($query['q'] ?? '');
+        $perPage = (int) ($query['per_page'] ?? 20);
+        $parent = $folders->find('shared', isset($query['folder']) ? (int) $query['folder'] : null, auth()->id());
 
         return Inertia::render('FileDashboard', [
             'files' => fn () => $this->paginateDashboard(
                 Upload::withEditorAccess(auth()->id())
+                    ->where('folder_id', $parent?->id)
                     ->when($search !== '', fn (Builder $query) => $query->whereLike('file_name', '%'.$search.'%'))
                     ->orderByDesc('created_at')->orderByDesc('id'),
-                4,
+                $perPage,
                 'files_page',
             ),
             'posts' => fn () => $this->paginateDashboard(
@@ -40,10 +48,11 @@ class FileController extends Controller
                 'posts_page',
             ),
             'stats' => fn () => [
-                'expiring_files' => Upload::whereBetween('expired_at', [now(), now()->addDay()])->count(),
+                'expiring_files' => Upload::where('folder_id', $parent?->id)->whereBetween('expired_at', [now(), now()->addDay()])->count(),
             ],
             'storageQuota' => fn () => $quota->status(auth()->id()),
-            'filters' => ['q' => $search],
+            'filters' => ['q' => $search, 'per_page' => $perPage],
+            ...$folders->listing('shared', $parent, auth()->id(), $search),
         ]);
     }
 
@@ -57,7 +66,7 @@ class FileController extends Controller
         return $query->paginate($perPage, ['*'], $pageName, $page, $total)->withQueryString();
     }
 
-    public function store(StoreUploadRequest $request, UploadQuota $quota)
+    public function store(StoreUploadRequest $request, UploadQuota $quota, FileFolders $folders)
     {
         $validated = $request->validated();
 
@@ -68,9 +77,10 @@ class FileController extends Controller
         $path = null;
 
         try {
-            DB::transaction(function () use ($file, $validated, $viewOnly, $request, $quota, $ownerId, $disk, &$path) {
+            DB::transaction(function () use ($file, $validated, $viewOnly, $request, $quota, $folders, $ownerId, $disk, &$path) {
                 $quota->lock($ownerId);
                 $quota->assertFits($ownerId, $file->getSize());
+                $folderId = $folders->destination('shared', $ownerId, $validated['folder_id'] ?? null, $validated['relative_path'] ?? null);
 
                 $path = $file->store('uploads', $disk);
                 if (! $path) {
@@ -78,6 +88,7 @@ class FileController extends Controller
                 }
                 $upload = Upload::create([
                     'user_id' => $ownerId,
+                    'folder_id' => $folderId,
                     'file_name' => $file->getClientOriginalName(),
                     'file_path' => $path,
                     'file_size' => $file->getSize(),
@@ -96,7 +107,7 @@ class FileController extends Controller
             throw $exception;
         }
 
-        return back();
+        return $request->expectsJson() ? response()->json(['uploaded' => true], 201) : back();
     }
 
     public function destroy($id)

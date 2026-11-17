@@ -94,12 +94,14 @@ export default function Login({ status }) {
                     <div style={rowStyle}>
                         <span className="login-label" style={labelStyle}>Mã số nhân viên :</span>
                         <Input
+                            tabIndex={1}
                             value={employeeCode}
                             onChange={(e) => setEmployeeCode(e.target.value)}
                             onPressEnter={handleCheck}
                             style={{ flex: 1 }}
                         />
                         <Button
+                            tabIndex={3}
                             loading={checking}
                             onClick={handleCheck}
                             className="login-action-button"
@@ -112,6 +114,7 @@ export default function Login({ status }) {
                     <div style={rowStyle}>
                         <span className="login-label" style={labelStyle}>Password :</span>
                         <Input.Password
+                            tabIndex={2}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             onPressEnter={handleCheck}
@@ -144,6 +147,7 @@ export default function Login({ status }) {
                             {/* Login button */}
                             <div style={{ marginTop: 16, textAlign: 'center' }}>
                                 <Button
+                                    tabIndex={4}
                                     loading={loggingIn}
                                     onClick={handleLogin}
                                     size="large"
