@@ -30,6 +30,58 @@ class OnlyOfficeTest extends TestCase
         Http::preventStrayRequests();
     }
 
+    public function test_thumbnail_conversion_is_async_and_source_requires_a_valid_signature(): void
+    {
+        $file = $this->document();
+        $source = null;
+        Http::fake(function ($request) use (&$source) {
+            $this->assertTrue($request['async']);
+            $this->assertSame('jpg', $request['outputtype']);
+            $this->assertSame(['aspect' => 1, 'first' => true, 'width' => 480, 'height' => 320], $request['thumbnail']);
+            $claims = app(OnlyOfficeToken::class)->decode($request['token']);
+            $this->assertSame($request['url'], $claims['url']);
+            $source = substr($request['url'], strlen(rtrim(config('onlyoffice.storage_url'), '/')));
+
+            return Http::response(['endConvert' => false]);
+        });
+
+        $this->get("/thumbnails/shared/{$file->id}")->assertStatus(202)->assertHeader('Retry-After', '2');
+        $this->get($source)->assertOk();
+        $this->get("/thumbnails/shared/{$file->id}/source")->assertForbidden();
+        $this->get($source.'&viewer=123')->assertForbidden();
+        $file->update(['expired_at' => now()->subMinute()]);
+        $this->get($source)->assertGone();
+    }
+
+    public function test_thumbnail_is_cached_but_access_is_rechecked_before_serving_it(): void
+    {
+        $owner = $this->createUser();
+        $file = $this->document($owner, personal: true);
+        // Minimal JPEG header with a one-pixel frame, sufficient for MIME validation.
+        $image = hex2bin('ffd8ffc00011080001000103011100021100031100ffd9');
+        Http::fake([
+            'http://onlyoffice/converter' => Http::response(['endConvert' => true, 'fileUrl' => 'http://onlyoffice/cache/files/thumb/output.jpg']),
+            'http://onlyoffice/cache/files/thumb/output.jpg' => Http::response($image, 200, ['Content-Type' => 'image/jpeg']),
+        ]);
+
+        $this->actingAs($owner)->get("/thumbnails/personal/{$file->id}")->assertOk()->assertHeader('Content-Type', 'image/jpeg')->assertContent($image);
+        $this->get("/thumbnails/personal/{$file->id}")->assertOk()->assertContent($image);
+        Http::assertSentCount(2);
+        $this->actingAs($this->createUser())->get("/thumbnails/personal/{$file->id}")->assertForbidden();
+        Http::assertSentCount(2);
+    }
+
+    public function test_thumbnail_rejects_expired_files_and_untrusted_conversion_paths(): void
+    {
+        $file = $this->document();
+        Http::fake(['http://onlyoffice/converter' => Http::response(['endConvert' => true, 'fileUrl' => 'http://example.com/private/secret'])]);
+        $this->get("/thumbnails/shared/{$file->id}")->assertForbidden();
+        Http::assertSentCount(1);
+        $file->update(['expired_at' => now()->subMinute()]);
+        $this->get("/thumbnails/shared/{$file->id}")->assertGone();
+        Http::assertSentCount(1);
+    }
+
     public function test_owner_can_edit_personal_document_and_config_is_signed(): void
     {
         $user = $this->createUser();

@@ -1,20 +1,23 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Button, Checkbox, Drawer, Dropdown, Image, Input, Modal, Pagination, Select, Table, Tooltip, Upload, message } from 'antd';
+import { Breadcrumb, Button, Checkbox, Drawer, Dropdown, Image, Input, Modal, Pagination, Segmented, Select, Table, Tooltip, Upload, message } from 'antd';
+import axios from 'axios';
 import {
-    ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EyeOutlined, FileExcelOutlined,
+    ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, FileExcelOutlined, LoginOutlined,
     FileImageOutlined, FileOutlined, FilePdfOutlined, FileTextOutlined, FileWordOutlined,
-    FolderOpenOutlined, GlobalOutlined, InfoCircleOutlined, MoreOutlined, PlusOutlined,
+    AppstoreOutlined, FolderOpenOutlined, InfoCircleOutlined, MoreOutlined, PlusOutlined, UnorderedListOutlined,
     SendOutlined, SettingOutlined, TeamOutlined, UploadOutlined, ScissorOutlined,
 } from '@ant-design/icons';
 import FileWorkspace from '@/Layouts/FileWorkspace';
-import OfficeFileActions, { isOfficeFile, officeUrl } from './OfficeFileActions';
+import OfficeFileActions, { isOfficeFile, officeLoginUrl, officeUrl } from './OfficeFileActions';
+import FileThumbnail from './FileThumbnail';
 import FileEditorSelect, { editorSelectionPayload } from './FileEditorSelect';
 import StorageQuota, { formatStorageSize } from './StorageQuota';
 
 const FilePermissionsModal = lazy(() => import('./FilePermissionsModal'));
 const PdfMergeModal = lazy(() => import('./PdfMergeModal'));
 const PdfExtractModal = lazy(() => import('./PdfExtractModal'));
+const ExistingFilesModal = lazy(() => import('./ExistingFilesModal'));
 
 const ttlOptions = [
     { value: 1, label: '1 phút' }, { value: 5, label: '5 phút' }, { value: 10, label: '10 phút' },
@@ -23,13 +26,21 @@ const ttlOptions = [
 const dateLabel = value => new Date(value).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const timeLabel = value => new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-export default function FileManager({ personal = false, files, posts, stats = {}, storageQuota, filters = {} }) {
-    const { auth } = usePage().props;
+export default function FileManager({ personal = false, files, posts, stats = {}, storageQuota, filters = {}, folders = [], currentFolder = null, folderBreadcrumbs = [] }) {
+    const { props: { auth }, url } = usePage();
+    const notifications = !personal && new URL(url, 'http://localhost').searchParams.get('tab') === 'notifications';
+    const personalNotes = personal && new URL(url, 'http://localhost').searchParams.get('tab') === 'notes';
     const user = auth?.user;
     const scope = personal ? 'personal' : 'shared';
     const rows = personal ? files : files.data;
     const notes = personal ? posts : posts.data;
     const [uploadOpen, setUploadOpen] = useState(false);
+    const [uploadMode, setUploadMode] = useState('file');
+    const [folderOpen, setFolderOpen] = useState(false);
+    const [folderName, setFolderName] = useState('');
+    const [folderError, setFolderError] = useState('');
+    const [creatingFolder, setCreatingFolder] = useState(false);
+    const [existingFilesOpen, setExistingFilesOpen] = useState(false);
     const [fileList, setFileList] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
@@ -45,14 +56,130 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     const [mergeFile, setMergeFile] = useState(null);
     const [extractOpen, setExtractOpen] = useState(false);
     const [extractFile, setExtractFile] = useState(null);
+    const [fileLayout, setFileLayout] = useState(() => {
+        try {
+            return window.sessionStorage.getItem('file-manager-layout') === 'grid' ? 'grid' : 'list';
+        } catch {
+            return 'list';
+        }
+    });
+    const [personalPage, setPersonalPage] = useState(1);
+    const [personalPageSize, setPersonalPageSize] = useState(20);
+    const pageSize = personal ? personalPageSize : files.per_page;
+    const currentPage = personal ? Math.min(personalPage, Math.max(1, Math.ceil(rows.length / pageSize))) : files.current_page;
+    const gridRows = personal ? rows.slice((currentPage - 1) * pageSize, currentPage * pageSize) : rows;
+    const filePagination = {
+        current: currentPage, pageSize, total: personal ? rows.length : files.total,
+        hideOnSinglePage: true, showSizeChanger: false,
+        onChange: page => personal ? setPersonalPage(page) : changePage('files_page', page),
+    };
+
+    const changeFileLayout = layout => {
+        setFileLayout(layout);
+        try {
+            window.sessionStorage.setItem('file-manager-layout', layout);
+        } catch {
+            // The layout can still change when browser storage is unavailable.
+        }
+    };
+
+    const changePageSize = size => {
+        if (personal) {
+            setPersonalPageSize(size);
+            setPersonalPage(1);
+            return;
+        }
+        const query = new URLSearchParams(window.location.search);
+        query.set('per_page', String(size));
+        query.delete('files_page');
+        router.get(window.location.pathname, Object.fromEntries(query), {
+            only: ['files', 'filters'], preserveState: true, preserveScroll: true, replace: true,
+        });
+    };
+
+    const openUpload = (mode = 'file') => {
+        setUploadMode(mode);
+        setFileList([]);
+        setUploadProgress(null);
+        setUploadOpen(true);
+    };
+
+    const openFolder = id => {
+        setPersonalPage(1);
+        router.get(personal ? '/my-files' : '/', {
+            ...(id ? { folder: id } : {}),
+            ...(!personal ? { per_page: pageSize } : {}),
+        }, { preserveState: true });
+    };
+
+    const createFolder = () => {
+        if (!folderName.trim()) { setFolderError('Vui lòng nhập tên thư mục.'); return; }
+        setCreatingFolder(true);
+        setFolderError('');
+        router.post(`/folders/${scope}`, { name: folderName.trim(), parent_id: currentFolder?.id ?? null }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setFolderOpen(false); setFolderName(''); message.success('Đã tạo thư mục.');
+                if (notifications || personalNotes) openFolder(currentFolder?.id);
+            },
+            onError: errors => setFolderError(Object.values(errors)[0] || 'Không tạo được thư mục.'),
+            onFinish: () => setCreatingFolder(false),
+        });
+    };
+
+    const uploadDirectory = async () => {
+        const pending = fileList.filter(item => item.status !== 'done');
+        if (!pending.length) return;
+        setUploading(true);
+        let completed = fileList.length - pending.length;
+        try {
+            for (const item of pending) {
+                const file = item.originFileObj || item;
+                const data = new FormData();
+                data.append('file', file);
+                data.append('relative_path', file.webkitRelativePath);
+                if (currentFolder) data.append('folder_id', currentFolder.id);
+                if (!personal) {
+                    data.append('ttl_minutes', ttl);
+                    data.append('view_only', viewOnly ? '1' : '0');
+                }
+                if (user) {
+                    const editors = editorSelectionPayload(editorIds);
+                    data.append('all_users_can_edit', editors.all_users_can_edit ? '1' : '0');
+                    editors.editor_ids.forEach(id => data.append('editor_ids[]', id));
+                }
+                await axios.post(personal ? '/my-files/upload' : '/upload', data, {
+                    headers: { Accept: 'application/json' },
+                    onUploadProgress: event => {
+                        const fraction = event.total ? event.loaded / event.total : 0;
+                        setUploadProgress(Math.round((completed + fraction) / fileList.length * 100));
+                    },
+                });
+                completed++;
+                setFileList(previous => previous.map(entry => entry.uid === item.uid ? { ...entry, status: 'done' } : entry));
+            }
+            message.success(`Đã tải ${completed} file và giữ nguyên cấu trúc thư mục.`);
+            setFileList([]); setEditorIds([]); setViewOnly(false); setUploadOpen(false);
+        } catch (error) {
+            const detail = error.response?.status === 419 ? 'Phiên làm việc đã hết hạn. Vui lòng tải lại trang.'
+                : Object.values(error.response?.data?.errors || {}).flat()[0] || 'Không tải được file tiếp theo.';
+            message.error(`Đã tải ${completed}/${fileList.length} file. ${detail} Bạn có thể thử lại các file còn lại.`);
+        } finally {
+            setUploading(false);
+            setUploadProgress(null);
+            router.reload({ only: ['files', 'folders', 'stats', 'storageQuota'] });
+        }
+    };
 
     const upload = () => {
+        if (uploadMode === 'folder') { uploadDirectory(); return; }
         const file = fileList[0]?.originFileObj || fileList[0];
         if (!file) return;
         setUploading(true);
         setUploadProgress(null);
         router.post(personal ? '/my-files/upload' : '/upload', {
             file,
+            folder_id: currentFolder?.id ?? null,
             ...(personal ? {} : { ttl_minutes: ttl, view_only: viewOnly }),
             ...(user ? editorSelectionPayload(editorIds) : {}),
         }, {
@@ -94,13 +221,13 @@ export default function FileManager({ personal = false, files, posts, stats = {}
         query.delete('files_page');
         if (value.trim()) query.set('q', value.trim()); else query.delete('q');
         router.get(personal ? '/my-files' : '/', Object.fromEntries(query), {
-            only: ['files', 'filters'], preserveState: true, preserveScroll: true, replace: true,
+            only: ['files', 'folders', 'filters'], preserveState: true, preserveScroll: true, replace: true,
         });
     };
 
     const refresh = () => {
         setRefreshing(true);
-        router.reload({ only: ['files', 'posts', 'userPosts', 'stats', 'storageQuota'], onFinish: () => setRefreshing(false) });
+        router.reload({ only: ['files', 'folders', 'posts', 'userPosts', 'stats', 'storageQuota'], onFinish: () => setRefreshing(false) });
     };
 
     const removeFile = file => {
@@ -108,6 +235,9 @@ export default function FileManager({ personal = false, files, posts, stats = {}
             router.delete(personal ? `/my-files/${file.id}` : `/files/${file.id}`, { preserveScroll: true });
         }
     };
+
+    const openFile = file => isOfficeFile(file.file_name)
+        ? window.open(officeUrl(scope, file.id), '_blank', 'noopener,noreferrer') : setPreviewFile(file);
 
     const columns = [
         {
@@ -124,7 +254,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
         }] : []),
         {
             title: <span className="sr-only">Thao tác</span>, key: 'actions', width: !personal && !user ? 355 : 285,
-            render: (_, file) => {
+            render: (_, file, compact = false) => {
                 const owner = user?.id != null && Number(user.id) === Number(file.user_id);
                 const available = !file.expired_at || new Date(file.expired_at) > new Date();
                 const canEdit = Boolean(user) && (personal || owner || file.is_editor || file.all_users_can_edit || (file.user_id == null && !file.view_only));
@@ -135,9 +265,19 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                     ...(owner && available ? [{ key: 'permissions', icon: <SettingOutlined />, label: 'Quyền truy cập', onClick: () => setPermissionsFile(file) }] : []),
                     ...((personal ? owner : file.user_id == null || owner) ? [{ key: 'delete', icon: <DeleteOutlined />, label: 'Xóa file', danger: true, onClick: () => removeFile(file) }] : []),
                 ];
+                if (compact === true) {
+                    const items = [
+                        { key: 'view', icon: <EyeOutlined />, label: 'Xem', onClick: () => openFile(file) },
+                        ...(isOfficeFile(file.file_name) && canEdit && available ? [{ key: 'edit', icon: <EditOutlined />, label: <a href={officeUrl(scope, file.id, true)} target="_blank" rel="noopener noreferrer">Chỉnh sửa</a> }] : []),
+                        ...(isOfficeFile(file.file_name) && !user && !personal && available && (file.all_users_can_edit || (file.user_id == null && !file.view_only)) ? [{ key: 'login', icon: <LoginOutlined />, label: <a href={officeLoginUrl(file.id)}>Đăng nhập để chỉnh sửa</a> }] : []),
+                        ...(canDownload ? [{ key: 'download', icon: <DownloadOutlined />, label: <a href={personal ? `/my-files/${file.id}/download` : `/files/${file.id}/download`}>Tải về</a> }] : []),
+                        ...menu,
+                    ];
+                    return <Dropdown menu={{ items }} trigger={['click']}><Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác với ${file.file_name}`} /></Dropdown>;
+                }
                 return (
                     <div className="workspace-file-actions">
-                        <Button type="text" icon={<EyeOutlined />} onClick={() => isOfficeFile(file.file_name) ? window.open(officeUrl(scope, file.id), '_blank', 'noopener,noreferrer') : setPreviewFile(file)}>Xem</Button>
+                        <Button type="text" icon={<EyeOutlined />} onClick={() => openFile(file)}>Xem</Button>
                         <OfficeFileActions file={file} scope={scope} canEdit={canEdit && available} guest={!user && !personal && available} />
                         {canDownload && <Tooltip title="Tải về"><Button type="text" icon={<DownloadOutlined />} aria-label={`Tải ${file.file_name}`} onClick={() => { window.location.href = personal ? `/my-files/${file.id}/download` : `/files/${file.id}/download`; }} /></Tooltip>}
                         {menu.length > 0 && <Dropdown menu={{ items: menu }} trigger={['click']}><Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác với ${file.file_name}`} /></Dropdown>}
@@ -148,40 +288,98 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     ];
 
     return (
-        <FileWorkspace personal={personal} storageQuota={storageQuota} query={filters.q} onSearch={search} onUpload={() => setUploadOpen(true)} onRefresh={refresh} refreshing={refreshing}>
-            <Head title={personal ? 'File cá nhân' : 'Không gian chung'} />
-            <section className="workspace-canvas" aria-label="Danh sách file">
+        <FileWorkspace personal={personal} notifications={notifications} personalNotes={personalNotes} storageQuota={storageQuota} query={filters.q} onSearch={search} onUpload={() => openUpload()} onUploadFolder={() => openUpload('folder')} onCreateFolder={() => { setFolderError(''); setFolderName(''); setFolderOpen(true); }} onAddExistingFiles={currentFolder && !notifications && !personalNotes ? () => setExistingFilesOpen(true) : undefined} onRefresh={refresh} refreshing={refreshing}>
+            <Head title={personalNotes ? 'Ghi chú cá nhân' : personal ? 'File cá nhân' : notifications ? 'Thông báo' : 'Không gian chung'} />
+            {!notifications && !personalNotes && <section className="workspace-canvas workspace-files" aria-label="Danh sách file">
                 <div className="workspace-page-heading">
                     <div>
-                        <h1>{personal ? 'File cá nhân' : 'File Share'}</h1>
+                        <h1>{currentFolder?.name || (personal ? 'File cá nhân' : 'File Share')}</h1>
                         {personal && <p>Tài liệu của bạn và những file được chia sẻ với bạn.</p>}
                     </div>
                     <div className="workspace-heading-actions">
+                        {currentFolder && <Button icon={<PlusOutlined />} onClick={() => setExistingFilesOpen(true)}>Thêm file đã upload</Button>}
                         <Button icon={<ScissorOutlined />} onClick={() => { setExtractFile(null); setExtractOpen(true); }}>Tách PDF</Button>
-                        <div className="workspace-heading-icon">{personal ? <FolderOpenOutlined /> : <GlobalOutlined />}</div>
+                        <Segmented
+                            className="workspace-layout-switch"
+                            aria-label="Bố cục danh sách file"
+                            value={fileLayout}
+                            onChange={changeFileLayout}
+                            options={[
+                                { value: 'list', icon: <UnorderedListOutlined aria-label="Dạng danh sách" />, title: 'Dạng danh sách' },
+                                { value: 'grid', icon: <AppstoreOutlined aria-label="Dạng lưới" />, title: 'Dạng lưới' },
+                            ]}
+                        />
                     </div>
                 </div>
+                {currentFolder && <Breadcrumb className="workspace-folder-breadcrumbs" items={[
+                    { title: <button type="button" onClick={() => openFolder(null)}>{personal ? 'File cá nhân' : 'File Sharing'}</button> },
+                    ...folderBreadcrumbs.map((folder, index) => ({
+                        title: index === folderBreadcrumbs.length - 1 ? folder.name : <button type="button" onClick={() => openFolder(folder.id)}>{folder.name}</button>,
+                    })),
+                ]} />}
                 <div className="workspace-summary">
                     <span className="workspace-summary-item"><FileOutlined /><strong>{personal ? files.length : files.total}</strong> {filters.q ? 'kết quả' : 'file'}</span>
+                    {folders.length > 0 && <span className="workspace-summary-item"><FolderOpenOutlined /><strong>{folders.length}</strong> thư mục</span>}
                     {!personal && stats.expiring_files > 0 && <span className="workspace-summary-item warning"><ClockCircleOutlined />{stats.expiring_files} file hết hạn trong 24h</span>}
                     {personal && <span className="workspace-summary-item"><TeamOutlined />{files.filter(file => Number(file.user_id) !== Number(user?.id)).length} file được chia sẻ</span>}
                     {filters.q && <Button size="small" type="text" onClick={() => search('')}>Bỏ tìm kiếm</Button>}
+                    <div className="workspace-page-controls">
+                        <div className="workspace-page-size">
+                            <span>Hiển thị</span>
+                            <Select
+                                aria-label="Số file mỗi trang" size="small" value={pageSize} onChange={changePageSize}
+                                options={[20, 50, 100].map(value => ({ value, label: `${value} file / trang` }))}
+                                popupMatchSelectWidth={false}
+                            />
+                        </div>
+                        <nav aria-label="Chọn trang danh sách file">
+                            <Pagination {...filePagination} responsive showLessItems />
+                        </nav>
+                    </div>
                 </div>
-                <div className="workspace-table">
+                {folders.length > 0 && <div className="workspace-folder-list" role="list" aria-label="Thư mục">
+                    {folders.map(folder => <div className="workspace-folder-item" role="listitem" key={folder.id}>
+                        <button type="button" className="workspace-folder-open" onClick={() => openFolder(folder.id)} title={folder.name}>
+                            <FolderOpenOutlined /><span>{folder.name}</span>
+                        </button>
+                        {((!personal && folder.user_id == null) || (user && Number(folder.user_id) === Number(user.id))) && <Dropdown trigger={['click']} menu={{ items: [
+                            { key: 'delete', label: 'Xóa thư mục trống', icon: <DeleteOutlined />, danger: true, onClick: () => {
+                                if (window.confirm(`Xóa thư mục “${folder.name}”?`)) router.delete(`/folders/${scope}/${folder.id}`, {
+                                    preserveScroll: true, onError: errors => message.error(Object.values(errors)[0] || 'Không xóa được thư mục.'),
+                                });
+                            } },
+                        ] }}><Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác với thư mục ${folder.name}`} /></Dropdown>}
+                    </div>)}
+                </div>}
+                {fileLayout === 'list' ? <div className="workspace-table">
                     <Table
                         key={`${scope}-${filters.q || ''}`}
                         columns={columns} dataSource={rows} rowKey="id" scroll={{ x: personal ? 790 : !user ? 995 : 925 }}
-                        locale={{ emptyText: <EmptyFiles searching={Boolean(filters.q)} onUpload={() => setUploadOpen(true)} /> }}
-                        pagination={personal ? { pageSize: 8, hideOnSinglePage: true, showSizeChanger: false } : {
-                            current: files.current_page, pageSize: files.per_page, total: files.total,
-                            showSizeChanger: false, hideOnSinglePage: true, onChange: page => changePage('files_page', page),
-                        }}
+                        locale={{ emptyText: <EmptyFiles searching={Boolean(filters.q)} onUpload={() => openUpload()} /> }}
+                        pagination={filePagination}
                     />
-                </div>
-            </section>
+                </div> : <div className="workspace-grid-view">
+                    {gridRows.length ? <div className="workspace-file-grid">
+                        {gridRows.map(file => <article className="workspace-file-card" key={file.id}>
+                            <div className="workspace-file-card-header">
+                                <FileName file={file} personal={personal} userId={user?.id} compact />
+                                {columns[columns.length - 1].render(null, file, true)}
+                            </div>
+                            <button type="button" className="workspace-file-card-preview" aria-label={`Xem ${file.file_name}`} onClick={() => openFile(file)}>
+                                <FileThumbnail key={`${scope}-${file.id}-${file.updated_at}`} file={file} scope={scope} />
+                            </button>
+                            <div className="workspace-file-card-meta">
+                                <span>Ngày tải lên: {dateLabel(file.created_at)}</span>
+                                {!personal && <Countdown expiry={file.expired_at} />}
+                            </div>
+                        </article>)}
+                    </div> : <EmptyFiles searching={Boolean(filters.q)} onUpload={() => openUpload()} />}
+                    <Pagination className="workspace-grid-pagination" {...filePagination} />
+                </div>}
+            </section>}
 
-            <section className="workspace-canvas workspace-feed" aria-label={personal ? 'Ghi chú cá nhân' : 'Thông báo chung'}>
-                <div className="workspace-section-heading"><h2><FileTextOutlined />{personal ? 'Ghi chú cá nhân' : 'Trao đổi thông tin'}</h2><span>{personal ? notes.length : posts.total} {personal ? 'ghi chú' : 'thông báo'}</span></div>
+            {(personalNotes || notifications) && <section className="workspace-canvas workspace-feed" aria-label={personal ? 'Ghi chú cá nhân' : 'Thông báo chung'}>
+                <div className="workspace-section-heading"><h2><FileTextOutlined />{personal ? 'Ghi chú cá nhân' : 'Thông báo'}</h2><span>{personal ? notes.length : posts.total} {personal ? 'ghi chú' : 'thông báo'}</span></div>
                 <div className="workspace-notes-layout">
                 <div className="workspace-composer workspace-compact-composer">
                     <label className="workspace-field-label" htmlFor={`${scope}-note-content`}>{personal ? 'Ghi chú mới' : 'Thông báo mới'}</label>
@@ -206,15 +404,22 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 ))}</div> : <div className="workspace-empty"><strong>{personal ? 'Chưa có ghi chú nào' : 'Chưa có thông báo nào'}</strong><p>{personal ? 'Bắt đầu bằng một ý tưởng hoặc việc cần làm.' : 'Viết thông báo đầu tiên để chia sẻ với mọi người.'}</p></div>}
                 </div>
                 {!personal && <div className="workspace-feed-pagination"><Pagination current={posts.current_page} pageSize={posts.per_page} total={posts.total} size="small" hideOnSinglePage showSizeChanger={false} onChange={page => changePage('posts_page', page)} /></div>}
-            </section>
+            </section>}
 
-            <Drawer title="Tải file lên" open={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} width={440} className="workspace-upload-drawer" styles={{ wrapper: { maxWidth: '100vw' } }} maskClosable={!uploading} closable={!uploading}>
+            <Modal title="Tạo thư mục" open={folderOpen} onCancel={() => !creatingFolder && setFolderOpen(false)} onOk={createFolder} confirmLoading={creatingFolder} okText="Tạo thư mục" cancelText="Hủy" destroyOnClose>
+                <label className="workspace-field-label" htmlFor="new-folder-name">Tên thư mục</label>
+                <Input id="new-folder-name" autoFocus value={folderName} onChange={event => setFolderName(event.target.value)} maxLength={255} onPressEnter={() => !creatingFolder && createFolder()} disabled={creatingFolder} status={folderError ? 'error' : undefined} />
+                {folderError && <p role="alert" className="workspace-folder-error">{folderError}</p>}
+            </Modal>
+            <Drawer title={uploadMode === 'folder' ? 'Tải thư mục lên' : 'Tải file lên'} open={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} width={440} className="workspace-upload-drawer" styles={{ wrapper: { maxWidth: '100vw' } }} maskClosable={!uploading} closable={!uploading}>
                 <p className="workspace-upload-description">{personal ? 'Lưu tài liệu trong không gian cá nhân và chọn người có thể chỉnh sửa.' : 'Chia sẻ file lên không gian chung và đặt thời gian tự xóa.'}</p>
-                <Upload.Dragger className="workspace-dropzone" fileList={fileList} maxCount={1} disabled={uploading} onChange={({ fileList: selected }) => setFileList(selected.slice(-1))} beforeUpload={file => {
-                    if (file.size > 100 * 1024 * 1024) { message.error('File không được vượt quá 100 MB.'); return Upload.LIST_IGNORE; }
+                {currentFolder && <p className="workspace-upload-description">Vị trí: <strong>{currentFolder.name}</strong></p>}
+                {uploadMode === 'folder' && <p className="workspace-upload-description">Giữ nguyên các thư mục con có file. Mỗi file tối đa 100 MB. Các thiết lập bên dưới áp dụng cho mọi file được tải lên.</p>}
+                <Upload.Dragger key={uploadMode} className="workspace-dropzone" directory={uploadMode === 'folder'} multiple={uploadMode === 'folder'} fileList={fileList} maxCount={uploadMode === 'folder' ? undefined : 1} disabled={uploading} onChange={({ fileList: selected }) => setFileList(uploadMode === 'folder' ? selected.map(item => ({ ...item, name: item.originFileObj?.webkitRelativePath || item.name })) : selected.slice(-1))} beforeUpload={file => {
+                    if (file.size > 100 * 1024 * 1024) { message.error(`File “${file.name}” vượt quá 100 MB và sẽ không được chọn.`); return Upload.LIST_IGNORE; }
                     return false;
                 }}>
-                    <div className="upload-illustration"><UploadOutlined /></div><p className="upload-title">Kéo thả file vào đây</p><p className="upload-hint">hoặc nhấn để chọn file · Tối đa 100 MB</p>
+                    <div className="upload-illustration">{uploadMode === 'folder' ? <FolderOpenOutlined /> : <UploadOutlined />}</div><p className="upload-title">{uploadMode === 'folder' ? 'Nhấn để chọn thư mục' : 'Kéo thả file vào đây'}</p><p className="upload-hint">{uploadMode === 'folder' ? `${fileList.length} file được chọn · Giữ cấu trúc thư mục` : 'hoặc nhấn để chọn file · Tối đa 100 MB'}</p>
                 </Upload.Dragger>
                 <div className="workspace-upload-settings">
                     {!personal && <><label className="workspace-field-label" htmlFor="upload-ttl">Tự động xóa file sau</label><Select id="upload-ttl" value={ttl} onChange={setTtl} options={ttlOptions} disabled={uploading} style={{ width: '100%' }} /></>}
@@ -226,24 +431,29 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 <div className="workspace-upload-quota"><StorageQuota quota={storageQuota} /></div>
             </Drawer>
             <Suspense fallback={<Modal open title="Đang tải chức năng…" footer={null} onCancel={() => {
-                setPermissionsFile(null); setMergeFile(null); setExtractOpen(false);
+                setPermissionsFile(null); setMergeFile(null); setExtractOpen(false); setExistingFilesOpen(false);
             }}><p role="status">Vui lòng chờ trong giây lát.</p></Modal>}>
                 {permissionsFile && <FilePermissionsModal file={permissionsFile} scope={scope} onClose={() => setPermissionsFile(null)} />}
                 {mergeFile && <PdfMergeModal file={mergeFile} scope={scope} onClose={() => setMergeFile(null)} />}
                 {extractOpen && <PdfExtractModal open initialFile={extractFile} scope={scope} onClose={() => setExtractOpen(false)} />}
+                {existingFilesOpen && currentFolder && <ExistingFilesModal key={`${scope}-${currentFolder.id}`} scope={scope} folder={currentFolder}
+                    onClose={() => setExistingFilesOpen(false)} onComplete={() => {
+                        setExistingFilesOpen(false);
+                        router.reload({ only: ['files', 'folders', 'stats', 'storageQuota'] });
+                    }} />}
             </Suspense>
             <Preview file={previewFile} personal={personal} onClose={() => setPreviewFile(null)} />
         </FileWorkspace>
     );
 }
 
-function FileName({ file, personal, userId }) {
+function FileName({ file, personal, userId, compact = false }) {
     const ext = file.file_name.split('.').pop().toLowerCase();
     const [kind, icon] = /^(docx?|odt)$/.test(ext) ? ['doc', <FileWordOutlined />]
         : /^(xlsx?|csv|ods)$/.test(ext) ? ['sheet', <FileExcelOutlined />]
         : ext === 'pdf' ? ['pdf', <FilePdfOutlined />]
         : /^(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/.test(ext) ? ['image', <FileImageOutlined />] : ['', <FileOutlined />];
-    return <div className="workspace-file-name"><span className={`workspace-file-type ${kind}`}>{icon}</span><div className="workspace-file-text"><strong title={file.file_name}>{file.file_name}</strong><small>{file.file_size != null ? formatStorageSize(Number(file.file_size)) : ext.toUpperCase()}{personal && Number(file.user_id) !== Number(userId) ? ` · Chia sẻ bởi ${file.user?.name || 'người dùng khác'}` : ''}</small></div></div>;
+    return <div className="workspace-file-name"><span className={`workspace-file-type ${kind}`}>{icon}</span><div className="workspace-file-text"><strong title={file.file_name}>{file.file_name}</strong>{!compact && <small>{file.file_size != null ? formatStorageSize(Number(file.file_size)) : ext.toUpperCase()}{personal && Number(file.user_id) !== Number(userId) ? ` · Chia sẻ bởi ${file.user?.name || 'người dùng khác'}` : ''}</small>}</div></div>;
 }
 
 function EmptyFiles({ searching, onUpload }) {

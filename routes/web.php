@@ -13,6 +13,7 @@ use App\Http\Controllers\FileEditorController;
 use App\Http\Controllers\PdfMergeController;
 use App\Http\Controllers\PdfExtractController;
 use App\Http\Controllers\OfficeActivityController;
+use App\Http\Controllers\FileFolderController;
 
 
 // Route::get('/', function () {
@@ -42,6 +43,10 @@ Route::get('/dashboard', [FileController::class , 'index']);
 
 // Các route xử lý file (Đã bỏ middleware auth)
 Route::post('/upload', [FileController::class , 'store'])->name('files.store');
+Route::post('/folders/{scope}', [FileFolderController::class, 'store'])->whereIn('scope', ['shared', 'personal'])->name('folders.store');
+Route::get('/folders/{scope}/{id}/files', [FileFolderController::class, 'availableFiles'])->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('folders.available-files');
+Route::post('/folders/{scope}/{id}/files', [FileFolderController::class, 'addFiles'])->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('folders.add-files');
+Route::delete('/folders/{scope}/{id}', [FileFolderController::class, 'destroy'])->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('folders.destroy');
 Route::get('/files/{id}/download', [FileController::class , 'download'])->name('files.download');
 Route::post('/pdf/{scope}/{id}/merge', PdfMergeController::class)
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('pdf.merge');
@@ -89,6 +94,10 @@ Route::patch('/office/{scope}/{id}/permissions', [FileEditorController::class, '
 
 Route::get('/office/{scope}/{id}', [OnlyOfficeController::class, 'show'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.show');
+Route::get('/thumbnails/{scope}/{id}', [OnlyOfficeController::class, 'thumbnail'])
+    ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('file-thumbnail.show');
+Route::get('/thumbnails/{scope}/{id}/source', [OnlyOfficeController::class, 'thumbnailSource'])
+    ->middleware('signed:relative')->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('file-thumbnail.source');
 Route::get('/office/shared/{id}/login', [OnlyOfficeController::class, 'loginToEdit'])
     ->whereNumber('id')->name('office.login');
 Route::get('/office/{scope}/{id}/activities', [OfficeActivityController::class, 'index'])

@@ -13,6 +13,22 @@ class FileSearchTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_shared_files_default_to_twenty_per_page_and_support_larger_pages(): void
+    {
+        $this->withoutVite();
+        for ($index = 1; $index <= 25; $index++) {
+            Upload::create(['file_name' => "file-{$index}.txt", 'file_path' => "uploads/file-{$index}.txt", 'expired_at' => now()->addHour()]);
+        }
+
+        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('files.per_page', 20)->where('files.total', 25)->has('files.data', 20)->etc());
+        $this->get('/?files_page=2')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('files.current_page', 2)->has('files.data', 5)->etc());
+        $this->get('/?per_page=50&files_page=2')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('files.per_page', 50)->where('files.current_page', 1)->has('files.data', 25)->etc());
+        $this->getJson('/?per_page=1000')->assertUnprocessable()->assertJsonValidationErrors('per_page');
+    }
+
     public function test_shared_search_finds_files_outside_the_current_page_and_keeps_pagination_usable(): void
     {
         $this->withoutVite();

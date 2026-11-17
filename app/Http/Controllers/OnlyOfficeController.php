@@ -10,6 +10,7 @@ use App\Services\OnlyOfficeToken;
 use App\Services\UploadQuota;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -20,6 +21,71 @@ use Throwable;
 
 class OnlyOfficeController extends Controller
 {
+    public function thumbnail(Request $request, string $scope, int $id, OnlyOfficeToken $tokens)
+    {
+        $file = $this->file($scope, $id);
+        if ($scope === 'personal') {
+            abort_unless($file->canEditOffice($request->user()?->id), 403);
+        }
+        $this->assertAvailable($file);
+        $extension = strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION));
+        abort_unless(in_array($extension, ['doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'csv', 'ppt', 'pptx', 'odp', 'pdf'], true), 415);
+        $disk = Storage::disk($this->disk($file));
+        abort_if($disk->size($file->file_path) > config('onlyoffice.max_file_size'), 413);
+        $revision = $this->thumbnailRevision($file);
+        $cacheKey = 'file-thumbnail-v1-'.$scope.'-'.$id.'-'.$revision;
+        $image = Cache::get($cacheKey);
+        if (! is_string($image)) {
+            $parameters = ['scope' => $scope, 'id' => $id, 'revision' => $revision];
+            if ($scope === 'personal') {
+                $parameters['viewer'] = $request->user()->id;
+            }
+            $payload = [
+                'async' => true,
+                'filetype' => $extension,
+                'key' => hash('sha256', $cacheKey),
+                'outputtype' => 'jpg',
+                'thumbnail' => ['aspect' => 1, 'first' => true, 'width' => 480, 'height' => 320],
+                'url' => $this->storageUrl('file-thumbnail.source', $parameters, now()->addMinutes(5)),
+            ];
+            $payload['token'] = $tokens->encode($payload);
+            $result = Http::acceptJson()->connectTimeout(3)->timeout(10)
+                ->post(rtrim(config('onlyoffice.internal_url'), '/').'/converter', $payload)->throw()->json();
+            abort_if(! is_array($result) || ! empty($result['error']), 502);
+            if (empty($result['endConvert'])) {
+                // Async conversion frees PHP workers to serve the signed source URL.
+                return response('', 202, ['Retry-After' => '2', 'Cache-Control' => 'no-store']);
+            }
+            $converted = Http::connectTimeout(3)->timeout(10)->withOptions(['allow_redirects' => false])
+                ->get($this->downloadUrl($result['fileUrl'] ?? null))->throw()->body();
+            abort_if(strlen($converted) > 1024 * 1024 || (@getimagesizefromstring($converted)['mime'] ?? null) !== 'image/jpeg', 502);
+            $image = base64_encode($converted);
+            Cache::put($cacheKey, $image, now()->addMinutes(30));
+        }
+
+        return response(base64_decode($image), 200, ['Content-Type' => 'image/jpeg', 'Cache-Control' => 'private, no-store']);
+    }
+
+    public function thumbnailSource(Request $request, string $scope, int $id)
+    {
+        $file = $this->file($scope, $id);
+        $this->assertAvailable($file);
+        if ($scope === 'personal') {
+            $viewer = (string) $request->query('viewer');
+            abort_unless(ctype_digit($viewer) && (int) $viewer > 0 && $file->canEditOffice((int) $viewer), 403);
+        }
+        abort_unless(hash_equals($this->thumbnailRevision($file), (string) $request->query('revision')), 403);
+
+        return response()->file(Storage::disk($this->disk($file))->path($file->file_path), ['Cache-Control' => 'no-store'])->setPrivate();
+    }
+
+    private function thumbnailRevision(Upload|UserUpload $file): string
+    {
+        $disk = Storage::disk($this->disk($file));
+
+        return hash('sha256', implode('|', [$file->file_path, $file->updated_at, $file->office_key, $disk->lastModified($file->file_path), $disk->size($file->file_path)]));
+    }
+
     public function loginToEdit(Request $request, int $id)
     {
         $file = $this->file('shared', $id);

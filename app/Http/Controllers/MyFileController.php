@@ -6,6 +6,7 @@ use App\Http\Requests\StoreUploadRequest;
 use App\Models\UserPost;
 use App\Models\UserUpload;
 use App\Services\UploadQuota;
+use App\Services\FileFolders;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -14,13 +15,21 @@ use Throwable;
 
 class MyFileController extends Controller
 {
-    public function index(UploadQuota $quota)
+    public function index(UploadQuota $quota, FileFolders $folders)
     {
-        $query = request()->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $query = request()->validate(['q' => ['nullable', 'string', 'max:200'], 'folder' => ['nullable', 'integer', 'min:1']]);
         $search = trim($query['q'] ?? '');
+        $parent = $folders->find('personal', isset($query['folder']) ? (int) $query['folder'] : null, auth()->id());
         $files = UserUpload::where(fn ($query) => $query->where('user_id', auth()->id())
             ->orWhere('all_users_can_edit', true)
             ->orWhereHas('editors', fn ($editors) => $editors->where('users.id', auth()->id())))
+            ->where(function ($query) use ($parent) {
+                $query->where('folder_id', $parent?->id);
+                if ($parent === null) {
+                    // Individually shared files remain discoverable without exposing the owner's folders.
+                    $query->orWhere('user_id', '!=', auth()->id());
+                }
+            })
             ->when($search !== '', fn ($query) => $query->whereLike('file_name', '%'.$search.'%'))
             ->with('user:id,name')
             ->orderBy('created_at', 'desc')
@@ -35,10 +44,11 @@ class MyFileController extends Controller
             'userPosts' => $userPosts,
             'storageQuota' => $quota->status(auth()->id()),
             'filters' => ['q' => $search],
+            ...$folders->listing('personal', $parent, auth()->id(), $search),
         ]);
     }
 
-    public function store(StoreUploadRequest $request, UploadQuota $quota)
+    public function store(StoreUploadRequest $request, UploadQuota $quota, FileFolders $folders)
     {
         $validated = $request->validated();
         $file = $request->file('file');
@@ -46,9 +56,10 @@ class MyFileController extends Controller
         $path = null;
 
         try {
-            DB::transaction(function () use ($file, $validated, $request, $quota, $ownerId, &$path) {
+            DB::transaction(function () use ($file, $validated, $request, $quota, $folders, $ownerId, &$path) {
                 $quota->lock($ownerId);
                 $quota->assertFits($ownerId, $file->getSize());
+                $folderId = $folders->destination('personal', $ownerId, $validated['folder_id'] ?? null, $validated['relative_path'] ?? null);
 
                 $path = $file->store('user-uploads/'.$ownerId, 'public');
                 if (! $path) {
@@ -56,6 +67,7 @@ class MyFileController extends Controller
                 }
                 $upload = UserUpload::create([
                     'user_id' => $ownerId,
+                    'folder_id' => $folderId,
                     'file_name' => $file->getClientOriginalName(),
                     'file_path' => $path,
                     'file_size' => $file->getSize(),
@@ -70,7 +82,7 @@ class MyFileController extends Controller
             throw $exception;
         }
 
-        return back();
+        return $request->expectsJson() ? response()->json(['uploaded' => true], 201) : back();
     }
 
     public function destroy($id)

@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Avatar, Button, ConfigProvider, Dropdown, Input, Tooltip } from 'antd';
 import viVN from 'antd/locale/vi_VN';
-import { GlobalOutlined, FolderOpenOutlined, PlusOutlined, LogoutOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { BellOutlined, FileTextOutlined, GlobalOutlined, FolderAddOutlined, FolderOpenOutlined, PlusOutlined, LogoutOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
 import StorageQuota from '@/Components/StorageQuota';
 import '../../css/workspace.css';
 
-export default function FileWorkspace({ personal, storageQuota, query = '', onSearch, onUpload, onRefresh, refreshing, children }) {
+export default function FileWorkspace({ personal, notifications = false, personalNotes = false, storageQuota, query = '', onSearch, onUpload, onCreateFolder, onUploadFolder, onAddExistingFiles, onRefresh, refreshing, children }) {
     const { auth } = usePage().props;
     const user = auth?.user;
     const name = auth?.display_name || user?.name || 'Khách';
@@ -31,13 +31,27 @@ export default function FileWorkspace({ personal, storageQuota, query = '', onSe
                         <img src="/favicon.svg" width="36" height="36" alt="" />
                         <span>File Manager</span>
                     </Link>
-                    <Button className="workspace-new-button" icon={<PlusOutlined />} onClick={onUpload}>Mới</Button>
+                    <Dropdown trigger={['click']} menu={{ items: [
+                        { key: 'folder', label: 'Tạo thư mục', icon: <FolderAddOutlined />, onClick: onCreateFolder },
+                        { type: 'divider' },
+                        { key: 'upload-file', label: 'Tải file lên', icon: <UploadOutlined />, onClick: onUpload },
+                        { key: 'upload-folder', label: 'Tải thư mục lên', icon: <FolderOpenOutlined />, onClick: onUploadFolder },
+                        ...(onAddExistingFiles ? [{ key: 'existing-files', label: 'Thêm file đã upload', icon: <FileTextOutlined />, onClick: onAddExistingFiles }] : []),
+                    ] }}>
+                        <Button className="workspace-new-button" icon={<PlusOutlined />}>Mới</Button>
+                    </Dropdown>
                     <nav className="workspace-navigation">
-                        <Link href="/" className={!personal ? 'active' : ''} aria-current={!personal ? 'page' : undefined}>
+                        <Link href="/" className={!personal && !notifications ? 'active' : ''} aria-current={!personal && !notifications ? 'page' : undefined}>
                             <GlobalOutlined /><span>File Sharing</span>
                         </Link>
-                        <Link href="/my-files" className={personal ? 'active' : ''} aria-current={personal ? 'page' : undefined}>
+                        <Link href="/my-files" className={personal && !personalNotes ? 'active' : ''} aria-current={personal && !personalNotes ? 'page' : undefined}>
                             <FolderOpenOutlined /><span>File cá nhân</span>
+                        </Link>
+                        <Link href="/my-files?tab=notes" className={personalNotes ? 'active' : ''} aria-current={personalNotes ? 'page' : undefined}>
+                            <FileTextOutlined /><span>Ghi chú cá nhân</span>
+                        </Link>
+                        <Link href="/?tab=notifications" className={notifications ? 'active' : ''} aria-current={notifications ? 'page' : undefined}>
+                            <BellOutlined /><span>Thông báo</span>
                         </Link>
                     </nav>
                     <div className="workspace-sidebar-bottom">
@@ -53,7 +67,7 @@ export default function FileWorkspace({ personal, storageQuota, query = '', onSe
                 </aside>
                 <div className="workspace-body">
                     <header className="workspace-topbar">
-                        <form className="workspace-search" role="search" onSubmit={event => { event.preventDefault(); onSearch(search); }}>
+                        {!notifications && !personalNotes && <form className="workspace-search" role="search" onSubmit={event => { event.preventDefault(); onSearch(search); }}>
                             <SearchOutlined aria-hidden="true" />
                             <Input
                                 variant="borderless" value={search} onChange={event => setSearch(event.target.value)}
@@ -62,7 +76,7 @@ export default function FileWorkspace({ personal, storageQuota, query = '', onSe
                                 onClear={() => onSearch('')}
                             />
                             <Button type="text" htmlType="submit" className="workspace-search-submit">Tìm</Button>
-                        </form>
+                        </form>}
                         <div className="workspace-topbar-actions">
                             <Tooltip title="Làm mới dữ liệu"><Button className="workspace-refresh" type="text" shape="circle" icon={<ReloadOutlined />} loading={refreshing} aria-label="Làm mới dữ liệu" onClick={onRefresh} /></Tooltip>
                             {user ? <Dropdown trigger={['click']} menu={{ items: [
@@ -73,7 +87,6 @@ export default function FileWorkspace({ personal, storageQuota, query = '', onSe
                         </div>
                     </header>
                     <main className="workspace-content">{children}</main>
-                    <footer className="workspace-footer">Chia sẻ dễ dàng. Làm việc cùng nhau.</footer>
                 </div>
             </div>
         </ConfigProvider>
