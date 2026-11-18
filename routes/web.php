@@ -14,6 +14,7 @@ use App\Http\Controllers\PdfMergeController;
 use App\Http\Controllers\PdfExtractController;
 use App\Http\Controllers\OfficeActivityController;
 use App\Http\Controllers\FileFolderController;
+use App\Http\Controllers\CreateOfficeFileController;
 
 
 // Route::get('/', function () {
@@ -94,6 +95,8 @@ Route::patch('/office/{scope}/{id}/permissions', [FileEditorController::class, '
 
 Route::get('/office/{scope}/{id}', [OnlyOfficeController::class, 'show'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('office.show');
+Route::post('/office/{scope}/create', CreateOfficeFileController::class)
+    ->middleware('auth')->whereIn('scope', ['shared', 'personal'])->name('office.create');
 Route::get('/thumbnails/{scope}/{id}', [OnlyOfficeController::class, 'thumbnail'])
     ->whereIn('scope', ['shared', 'personal'])->whereNumber('id')->name('file-thumbnail.show');
 Route::get('/thumbnails/{scope}/{id}/source', [OnlyOfficeController::class, 'thumbnailSource'])

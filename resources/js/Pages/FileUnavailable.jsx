@@ -8,7 +8,7 @@ const messages = {
     404: { title: 'Không tìm thấy file', description: 'File có thể đã bị xóa hoặc đường dẫn không còn đúng.' },
     410: { title: 'File đã hết hạn', description: 'Thời gian lưu trữ của file đã kết thúc. Bạn có thể quay lại danh sách để tải lên file mới.' },
     413: { title: 'File vượt quá dung lượng cho phép', description: 'Hãy sử dụng file có dung lượng nhỏ hơn để mở trong trình chỉnh sửa.' },
-    415: { title: 'Định dạng file chưa được hỗ trợ', description: 'Trình chỉnh sửa hiện hỗ trợ file Word (.docx) và Excel (.xlsx).' },
+    415: { title: 'Định dạng file chưa được hỗ trợ', description: 'Trình chỉnh sửa hiện hỗ trợ Word (.docx), Excel (.xlsx) và PowerPoint (.pptx).' },
     503: { title: 'Trình chỉnh sửa chưa sẵn sàng', description: 'Vui lòng quay lại danh sách và thử mở file sau.' },
 };
 

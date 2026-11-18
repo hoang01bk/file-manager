@@ -17,7 +17,7 @@ class OfficeActivity
         $file = ($scope === 'shared' ? Upload::query() : UserUpload::query())->findOrFail($id);
         abort_if($scope === 'personal' && ! $file->canEditOffice($request->user()?->id), 403);
         abort_if($file->expired_at?->isPast(), 410);
-        abort_unless(in_array(strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION)), ['docx', 'xlsx'], true), 415);
+        abort_unless(in_array(strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION)), ['docx', 'xlsx', 'pptx'], true), 415);
         $disk = $file instanceof Upload && $file->view_only ? 'local' : 'public';
         abort_unless(Storage::disk($disk)->exists($file->file_path), 404);
 
