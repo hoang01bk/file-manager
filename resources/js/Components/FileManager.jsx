@@ -4,7 +4,7 @@ import { Breadcrumb, Button, Checkbox, Drawer, Dropdown, Image, Input, Modal, Pa
 import axios from 'axios';
 import {
     ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, FileExcelOutlined, LoginOutlined,
-    FileImageOutlined, FileOutlined, FilePdfOutlined, FileTextOutlined, FileWordOutlined,
+    FileImageOutlined, FileOutlined, FilePdfOutlined, FilePptOutlined, FileTextOutlined, FileWordOutlined,
     AppstoreOutlined, FolderOpenOutlined, InfoCircleOutlined, MoreOutlined, PlusOutlined, UnorderedListOutlined,
     SendOutlined, SettingOutlined, TeamOutlined, UploadOutlined, ScissorOutlined,
 } from '@ant-design/icons';
@@ -18,6 +18,7 @@ const FilePermissionsModal = lazy(() => import('./FilePermissionsModal'));
 const PdfMergeModal = lazy(() => import('./PdfMergeModal'));
 const PdfExtractModal = lazy(() => import('./PdfExtractModal'));
 const ExistingFilesModal = lazy(() => import('./ExistingFilesModal'));
+const CreateOfficeFileModal = lazy(() => import('./CreateOfficeFileModal'));
 
 const ttlOptions = [
     { value: 1, label: '1 phút' }, { value: 5, label: '5 phút' }, { value: 10, label: '10 phút' },
@@ -41,6 +42,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     const [folderError, setFolderError] = useState('');
     const [creatingFolder, setCreatingFolder] = useState(false);
     const [existingFilesOpen, setExistingFilesOpen] = useState(false);
+    const [newOfficeType, setNewOfficeType] = useState(null);
     const [fileList, setFileList] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
@@ -102,6 +104,11 @@ export default function FileManager({ personal = false, files, posts, stats = {}
         setFileList([]);
         setUploadProgress(null);
         setUploadOpen(true);
+    };
+
+    const createOfficeFile = type => {
+        if (!user) { router.visit('/login'); return; }
+        setNewOfficeType(type);
     };
 
     const openFolder = id => {
@@ -288,7 +295,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     ];
 
     return (
-        <FileWorkspace personal={personal} notifications={notifications} personalNotes={personalNotes} storageQuota={storageQuota} query={filters.q} onSearch={search} onUpload={() => openUpload()} onUploadFolder={() => openUpload('folder')} onCreateFolder={() => { setFolderError(''); setFolderName(''); setFolderOpen(true); }} onAddExistingFiles={currentFolder && !notifications && !personalNotes ? () => setExistingFilesOpen(true) : undefined} onRefresh={refresh} refreshing={refreshing}>
+        <FileWorkspace personal={personal} notifications={notifications} personalNotes={personalNotes} storageQuota={storageQuota} query={filters.q} onSearch={search} onUpload={() => openUpload()} onUploadFolder={() => openUpload('folder')} onCreateFolder={() => { setFolderError(''); setFolderName(''); setFolderOpen(true); }} onAddExistingFiles={currentFolder && !notifications && !personalNotes ? () => setExistingFilesOpen(true) : undefined} onCreateOffice={createOfficeFile} onRefresh={refresh} refreshing={refreshing}>
             <Head title={personalNotes ? 'Ghi chú cá nhân' : personal ? 'File cá nhân' : notifications ? 'Thông báo' : 'Không gian chung'} />
             {!notifications && !personalNotes && <section className="workspace-canvas workspace-files" aria-label="Danh sách file">
                 <div className="workspace-page-heading">
@@ -431,7 +438,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 <div className="workspace-upload-quota"><StorageQuota quota={storageQuota} /></div>
             </Drawer>
             <Suspense fallback={<Modal open title="Đang tải chức năng…" footer={null} onCancel={() => {
-                setPermissionsFile(null); setMergeFile(null); setExtractOpen(false); setExistingFilesOpen(false);
+                setPermissionsFile(null); setMergeFile(null); setExtractOpen(false); setExistingFilesOpen(false); setNewOfficeType(null);
             }}><p role="status">Vui lòng chờ trong giây lát.</p></Modal>}>
                 {permissionsFile && <FilePermissionsModal file={permissionsFile} scope={scope} onClose={() => setPermissionsFile(null)} />}
                 {mergeFile && <PdfMergeModal file={mergeFile} scope={scope} onClose={() => setMergeFile(null)} />}
@@ -441,6 +448,8 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                         setExistingFilesOpen(false);
                         router.reload({ only: ['files', 'folders', 'stats', 'storageQuota'] });
                     }} />}
+                {newOfficeType && <CreateOfficeFileModal key={newOfficeType} type={newOfficeType} scope={scope} folder={currentFolder} ttlOptions={ttlOptions}
+                    onClose={() => setNewOfficeType(null)} onCreated={editUrl => window.location.assign(editUrl)} />}
             </Suspense>
             <Preview file={previewFile} personal={personal} onClose={() => setPreviewFile(null)} />
         </FileWorkspace>
@@ -451,6 +460,7 @@ function FileName({ file, personal, userId, compact = false }) {
     const ext = file.file_name.split('.').pop().toLowerCase();
     const [kind, icon] = /^(docx?|odt)$/.test(ext) ? ['doc', <FileWordOutlined />]
         : /^(xlsx?|csv|ods)$/.test(ext) ? ['sheet', <FileExcelOutlined />]
+        : /^(pptx?|odp)$/.test(ext) ? ['slide', <FilePptOutlined />]
         : ext === 'pdf' ? ['pdf', <FilePdfOutlined />]
         : /^(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/.test(ext) ? ['image', <FileImageOutlined />] : ['', <FileOutlined />];
     return <div className="workspace-file-name"><span className={`workspace-file-type ${kind}`}>{icon}</span><div className="workspace-file-text"><strong title={file.file_name}>{file.file_name}</strong>{!compact && <small>{file.file_size != null ? formatStorageSize(Number(file.file_size)) : ext.toUpperCase()}{personal && Number(file.user_id) !== Number(userId) ? ` · Chia sẻ bởi ${file.user?.name || 'người dùng khác'}` : ''}</small>}</div></div>;

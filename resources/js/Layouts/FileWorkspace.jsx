@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Avatar, Button, ConfigProvider, Dropdown, Input, Tooltip } from 'antd';
 import viVN from 'antd/locale/vi_VN';
-import { BellOutlined, FileTextOutlined, GlobalOutlined, FolderAddOutlined, FolderOpenOutlined, PlusOutlined, LogoutOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
+import { BellOutlined, FileExcelOutlined, FilePptOutlined, FileTextOutlined, FileWordOutlined, GlobalOutlined, FolderAddOutlined, FolderOpenOutlined, PlusOutlined, LogoutOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
 import StorageQuota from '@/Components/StorageQuota';
 import '../../css/workspace.css';
 
-export default function FileWorkspace({ personal, notifications = false, personalNotes = false, storageQuota, query = '', onSearch, onUpload, onCreateFolder, onUploadFolder, onAddExistingFiles, onRefresh, refreshing, children }) {
+export default function FileWorkspace({ personal, notifications = false, personalNotes = false, storageQuota, query = '', onSearch, onUpload, onCreateFolder, onUploadFolder, onAddExistingFiles, onCreateOffice, onRefresh, refreshing, children }) {
     const { auth } = usePage().props;
     const user = auth?.user;
     const name = auth?.display_name || user?.name || 'Khách';
@@ -37,6 +37,10 @@ export default function FileWorkspace({ personal, notifications = false, persona
                         { key: 'upload-file', label: 'Tải file lên', icon: <UploadOutlined />, onClick: onUpload },
                         { key: 'upload-folder', label: 'Tải thư mục lên', icon: <FolderOpenOutlined />, onClick: onUploadFolder },
                         ...(onAddExistingFiles ? [{ key: 'existing-files', label: 'Thêm file đã upload', icon: <FileTextOutlined />, onClick: onAddExistingFiles }] : []),
+                        { type: 'divider' },
+                        { key: 'create-word', label: 'Tài liệu Word', icon: <FileWordOutlined style={{ color: '#1a73e8' }} />, onClick: () => onCreateOffice('docx') },
+                        { key: 'create-excel', label: 'Bảng tính Excel', icon: <FileExcelOutlined style={{ color: '#188038' }} />, onClick: () => onCreateOffice('xlsx') },
+                        { key: 'create-powerpoint', label: 'Bản trình chiếu PowerPoint', icon: <FilePptOutlined style={{ color: '#b06000' }} />, onClick: () => onCreateOffice('pptx') },
                     ] }}>
                         <Button className="workspace-new-button" icon={<PlusOutlined />}>Mới</Button>
                     </Dropdown>

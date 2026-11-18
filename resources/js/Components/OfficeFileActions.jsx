@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from 'antd';
 import { EditOutlined, LoginOutlined } from '@ant-design/icons';
 
-export const isOfficeFile = (name = '') => /\.(docx|xlsx)$/i.test(name);
+export const isOfficeFile = (name = '') => /\.(docx|xlsx|pptx)$/i.test(name);
 export const officeUrl = (scope, id, edit = false) => `/office/${scope}/${id}${edit ? '?edit=1' : ''}`;
 export const officeLoginUrl = id => `/office/shared/${id}/login`;
 

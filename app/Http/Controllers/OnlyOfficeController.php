@@ -90,7 +90,7 @@ class OnlyOfficeController extends Controller
     {
         $file = $this->file('shared', $id);
         $this->assertAvailable($file);
-        abort_unless(in_array(strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION)), ['docx', 'xlsx'], true), 415);
+        abort_unless(in_array(strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION)), ['docx', 'xlsx', 'pptx'], true), 415);
         if (! $request->user()) {
             // Remember this fixed local endpoint, not a user-provided redirect URL.
             $request->session()->put('url.intended', route('office.login', ['id' => $id], absolute: false));
@@ -115,7 +115,7 @@ class OnlyOfficeController extends Controller
         $editing = $request->boolean('edit');
         abort_if($editing && ! $canEdit, 403, 'File này không cho phép bạn chỉnh sửa.');
         $extension = strtolower(pathinfo($file->file_name, PATHINFO_EXTENSION));
-        abort_unless(in_array($extension, ['docx', 'xlsx'], true), 415, 'Chỉ hỗ trợ DOCX và XLSX.');
+        abort_unless(in_array($extension, ['docx', 'xlsx', 'pptx'], true), 415, 'Chỉ hỗ trợ DOCX, XLSX và PPTX.');
         abort_if(Storage::disk($this->disk($file))->size($file->file_path) > config('onlyoffice.max_file_size'), 413, 'File vượt quá giới hạn 100 MB.');
 
         // A stable key shares one editing session; a final save rotates it.
@@ -135,7 +135,7 @@ class OnlyOfficeController extends Controller
         $parameters = ['scope' => $scope, 'id' => $id, 'key' => $key];
         $download = $canEdit || ! $file->view_only;
         $config = [
-            'documentType' => $extension === 'xlsx' ? 'cell' : 'word',
+            'documentType' => match ($extension) { 'xlsx' => 'cell', 'pptx' => 'slide', default => 'word' },
             'type' => 'desktop',
             'width' => '100%',
             'height' => '100%',
@@ -160,7 +160,8 @@ class OnlyOfficeController extends Controller
             'fileName' => $file->file_name,
             'editorConfig' => $config,
             'scriptUrl' => rtrim(config('onlyoffice.public_url'), '/').'/web-apps/apps/api/documents/api.js',
-            'backUrl' => $scope === 'personal' && $request->user() ? '/my-files' : '/',
+            'backUrl' => ($scope === 'personal' && $request->user() ? '/my-files' : '/')
+                .($file->folder_id && ($scope === 'shared' || (int) $file->user_id === $request->user()?->id) ? '?folder='.$file->folder_id : ''),
             'editing' => $editing,
             'editUrl' => $canEdit && ! $editing ? route('office.show', ['scope' => $scope, 'id' => $id, 'edit' => 1], absolute: false) : null,
             'loginEditUrl' => $scope === 'shared' && ! $request->user() && $file->allowsAnyAccountToEdit()
