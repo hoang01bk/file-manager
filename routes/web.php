@@ -15,6 +15,27 @@ use App\Http\Controllers\PdfExtractController;
 use App\Http\Controllers\OfficeActivityController;
 use App\Http\Controllers\FileFolderController;
 use App\Http\Controllers\CreateOfficeFileController;
+use App\Http\Controllers\WorkController;
+use App\Http\Controllers\WorkNotificationController;
+
+Route::middleware('auth')->prefix('work-notifications')->group(function () {
+    Route::get('/', [WorkNotificationController::class, 'index']);
+    Route::get('/count', [WorkNotificationController::class, 'count']);
+    Route::patch('/read-all', [WorkNotificationController::class, 'readAll']);
+    Route::patch('/{id}/read', [WorkNotificationController::class, 'read'])->whereNumber('id');
+});
+
+Route::middleware('auth')->prefix('work')->name('work.')->group(function () {
+    Route::get('/', [WorkController::class, 'index'])->name('index');
+    Route::get('/people', [WorkController::class, 'people']);
+    Route::post('/projects', [WorkController::class, 'storeProject']);
+    Route::patch('/projects/{id}', [WorkController::class, 'updateProject'])->whereNumber('id');
+    Route::post('/projects/{projectId}/items', [WorkController::class, 'storeItem'])->whereNumber('projectId');
+    Route::get('/items/{id}', [WorkController::class, 'showItem'])->whereNumber('id');
+    Route::patch('/items/{id}', [WorkController::class, 'updateItem'])->whereNumber('id');
+    Route::delete('/items/{id}', [WorkController::class, 'destroyItem'])->whereNumber('id');
+    Route::post('/items/{id}/comments', [WorkController::class, 'comment'])->whereNumber('id');
+});
 
 
 // Route::get('/', function () {
