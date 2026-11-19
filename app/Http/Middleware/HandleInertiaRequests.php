@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\WorkNotification;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,6 +36,7 @@ class HandleInertiaRequests extends Middleware
                 'user'         => $request->user(),
                 'display_name' => session('display_name'),
             ],
+            'workNotificationCount' => fn () => $request->user() ? WorkNotification::visibleTo($request->user()->id)->whereNull('read_at')->count() : 0,
         ];
     }
 }

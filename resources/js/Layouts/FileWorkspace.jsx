@@ -1,17 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Avatar, Button, ConfigProvider, Dropdown, Input, Tooltip } from 'antd';
+import { Avatar, Badge, Button, ConfigProvider, Dropdown, Input, Tooltip } from 'antd';
 import viVN from 'antd/locale/vi_VN';
-import { BellOutlined, FileExcelOutlined, FilePptOutlined, FileTextOutlined, FileWordOutlined, GlobalOutlined, FolderAddOutlined, FolderOpenOutlined, PlusOutlined, LogoutOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
+import { BellOutlined, CheckSquareOutlined, FileExcelOutlined, FilePptOutlined, FileTextOutlined, FileWordOutlined, GlobalOutlined, FolderAddOutlined, FolderOpenOutlined, PlusOutlined, LogoutOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
 import StorageQuota from '@/Components/StorageQuota';
+import useWorkNotificationCount from '@/Components/useWorkNotificationCount';
 import '../../css/workspace.css';
 
-export default function FileWorkspace({ personal, notifications = false, personalNotes = false, storageQuota, query = '', onSearch, onUpload, onCreateFolder, onUploadFolder, onAddExistingFiles, onCreateOffice, onRefresh, refreshing, children }) {
-    const { auth } = usePage().props;
+export default function FileWorkspace({ personal, notifications = false, personalNotes = false, section = 'files', newMenuItems, searchPlaceholder, storageQuota, query = '', onSearch, onUpload, onCreateFolder, onUploadFolder, onAddExistingFiles, onCreateOffice, onRefresh, refreshing, children }) {
+    const { auth, workNotificationCount = 0 } = usePage().props;
     const user = auth?.user;
+    const unreadCount = useWorkNotificationCount(user?.id, workNotificationCount);
+    const notificationUrl = user ? '/?tab=notifications&notice=work' : '/?tab=notifications&notice=general';
     const name = auth?.display_name || user?.name || 'Khách';
     const [search, setSearch] = useState(query);
     useEffect(() => setSearch(query), [query]);
+    const accountContent = <>
+        <span className="workspace-session-avatar">
+            <Avatar className="workspace-avatar">{name.charAt(0).toUpperCase()}</Avatar>
+            <span className="workspace-session-dot" aria-hidden="true" />
+        </span>
+        <span className="workspace-session-copy">
+            <strong>{user ? name : 'Khách'}</strong>
+            <span role="status">{user ? 'Đã đăng nhập' : 'Đăng nhập'}</span>
+        </span>
+    </>;
 
     return (
         <ConfigProvider locale={viVN} theme={{
@@ -31,7 +44,7 @@ export default function FileWorkspace({ personal, notifications = false, persona
                         <img src="/favicon.svg" width="36" height="36" alt="" />
                         <span>File Manager</span>
                     </Link>
-                    <Dropdown trigger={['click']} menu={{ items: [
+                    <Dropdown trigger={['click']} menu={{ items: newMenuItems ?? [
                         { key: 'folder', label: 'Tạo thư mục', icon: <FolderAddOutlined />, onClick: onCreateFolder },
                         { type: 'divider' },
                         { key: 'upload-file', label: 'Tải file lên', icon: <UploadOutlined />, onClick: onUpload },
@@ -45,7 +58,7 @@ export default function FileWorkspace({ personal, notifications = false, persona
                         <Button className="workspace-new-button" icon={<PlusOutlined />}>Mới</Button>
                     </Dropdown>
                     <nav className="workspace-navigation">
-                        <Link href="/" className={!personal && !notifications ? 'active' : ''} aria-current={!personal && !notifications ? 'page' : undefined}>
+                        <Link href="/" className={section === 'files' && !personal && !notifications ? 'active' : ''} aria-current={section === 'files' && !personal && !notifications ? 'page' : undefined}>
                             <GlobalOutlined /><span>File Sharing</span>
                         </Link>
                         <Link href="/my-files" className={personal && !personalNotes ? 'active' : ''} aria-current={personal && !personalNotes ? 'page' : undefined}>
@@ -54,8 +67,12 @@ export default function FileWorkspace({ personal, notifications = false, persona
                         <Link href="/my-files?tab=notes" className={personalNotes ? 'active' : ''} aria-current={personalNotes ? 'page' : undefined}>
                             <FileTextOutlined /><span>Ghi chú cá nhân</span>
                         </Link>
-                        <Link href="/?tab=notifications" className={notifications ? 'active' : ''} aria-current={notifications ? 'page' : undefined}>
+                        <Link href={notificationUrl} className={`workspace-notification-link ${notifications ? 'active' : ''}`} aria-current={notifications ? 'page' : undefined}>
                             <BellOutlined /><span>Thông báo</span>
+                            <Badge className="workspace-notification-badge" count={unreadCount} overflowCount={99} size="small" />
+                        </Link>
+                        <Link href="/work" className={section === 'work' ? 'active' : ''} aria-current={section === 'work' ? 'page' : undefined}>
+                            <CheckSquareOutlined /><span>Công việc</span>
                         </Link>
                     </nav>
                     <div className="workspace-sidebar-bottom">
@@ -75,19 +92,22 @@ export default function FileWorkspace({ personal, notifications = false, persona
                             <SearchOutlined aria-hidden="true" />
                             <Input
                                 variant="borderless" value={search} onChange={event => setSearch(event.target.value)}
-                                placeholder={personal ? 'Tìm trong file cá nhân' : 'Tìm file trong không gian chung'}
-                                aria-label="Tìm file theo tên" maxLength={200} allowClear
+                                placeholder={searchPlaceholder || (personal ? 'Tìm trong file cá nhân' : 'Tìm file trong không gian chung')}
+                                aria-label={section === 'work' ? 'Tìm công việc' : 'Tìm file theo tên'} maxLength={200} allowClear
                                 onClear={() => onSearch('')}
                             />
                             <Button type="text" htmlType="submit" className="workspace-search-submit">Tìm</Button>
                         </form>}
                         <div className="workspace-topbar-actions">
                             <Tooltip title="Làm mới dữ liệu"><Button className="workspace-refresh" type="text" shape="circle" icon={<ReloadOutlined />} loading={refreshing} aria-label="Làm mới dữ liệu" onClick={onRefresh} /></Tooltip>
+                            <Tooltip title="Thông báo"><Link href={notificationUrl} className="workspace-notification-bell" aria-label={`Thông báo, ${unreadCount} chưa đọc`}>
+                                <Badge count={unreadCount} overflowCount={99} size="small"><BellOutlined /></Badge>
+                            </Link></Tooltip>
                             {user ? <Dropdown trigger={['click']} menu={{ items: [
                                 { key: 'name', label: name, disabled: true },
                                 { key: 'logout', label: 'Đăng xuất', icon: <LogoutOutlined />, onClick: () => router.post('/logout') },
-                            ] }}><button type="button" className="workspace-account-button" aria-label="Tài khoản của bạn"><Avatar className="workspace-avatar">{name.charAt(0).toUpperCase()}</Avatar></button></Dropdown>
-                                : <Link href="/login" aria-label="Đăng nhập"><Avatar className="workspace-avatar">{name.charAt(0).toUpperCase()}</Avatar></Link>}
+                            ] }}><button type="button" className="workspace-account-button workspace-session is-authenticated" aria-label={`Tài khoản ${name}, đã đăng nhập`} title={name}>{accountContent}</button></Dropdown>
+                                : <Link href="/login" className="workspace-account-button workspace-session is-guest" aria-label="Khách, đăng nhập tài khoản">{accountContent}</Link>}
                         </div>
                     </header>
                     <main className="workspace-content">{children}</main>

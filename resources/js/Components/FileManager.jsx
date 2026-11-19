@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Breadcrumb, Button, Checkbox, Drawer, Dropdown, Image, Input, Modal, Pagination, Segmented, Select, Table, Tooltip, Upload, message } from 'antd';
+import { Breadcrumb, Button, Checkbox, Drawer, Dropdown, Image, Input, Modal, Pagination, Segmented, Select, Table, Tabs, Tooltip, Upload, message } from 'antd';
 import axios from 'axios';
 import {
     ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, FileExcelOutlined, LoginOutlined,
@@ -9,6 +9,7 @@ import {
     SendOutlined, SettingOutlined, TeamOutlined, UploadOutlined, ScissorOutlined,
 } from '@ant-design/icons';
 import FileWorkspace from '@/Layouts/FileWorkspace';
+import WorkNotificationList from './WorkNotificationList';
 import OfficeFileActions, { isOfficeFile, officeLoginUrl, officeUrl } from './OfficeFileActions';
 import FileThumbnail from './FileThumbnail';
 import FileEditorSelect, { editorSelectionPayload } from './FileEditorSelect';
@@ -32,6 +33,7 @@ export default function FileManager({ personal = false, files, posts, stats = {}
     const notifications = !personal && new URL(url, 'http://localhost').searchParams.get('tab') === 'notifications';
     const personalNotes = personal && new URL(url, 'http://localhost').searchParams.get('tab') === 'notes';
     const user = auth?.user;
+    const noticeTab = user && new URL(url, 'http://localhost').searchParams.get('notice') !== 'general' ? 'work' : 'general';
     const scope = personal ? 'personal' : 'shared';
     const rows = personal ? files : files.data;
     const notes = personal ? posts : posts.data;
@@ -385,7 +387,11 @@ export default function FileManager({ personal = false, files, posts, stats = {}
                 </div>}
             </section>}
 
-            {(personalNotes || notifications) && <section className="workspace-canvas workspace-feed" aria-label={personal ? 'Ghi chú cá nhân' : 'Thông báo chung'}>
+            {notifications && <div className="workspace-notification-tabs"><Tabs activeKey={noticeTab} items={[
+                { key: 'work', label: 'Công việc', disabled: !user }, { key: 'general', label: 'Thông báo chung' },
+            ]} onChange={notice => router.get('/', { tab: 'notifications', notice }, { preserveState: true, preserveScroll: true })} /></div>}
+            {notifications && noticeTab === 'work' && <WorkNotificationList />}
+            {(personalNotes || (notifications && noticeTab === 'general')) && <section className="workspace-canvas workspace-feed" aria-label={personal ? 'Ghi chú cá nhân' : 'Thông báo chung'}>
                 <div className="workspace-section-heading"><h2><FileTextOutlined />{personal ? 'Ghi chú cá nhân' : 'Thông báo'}</h2><span>{personal ? notes.length : posts.total} {personal ? 'ghi chú' : 'thông báo'}</span></div>
                 <div className="workspace-notes-layout">
                 <div className="workspace-composer workspace-compact-composer">
